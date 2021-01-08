@@ -258,12 +258,23 @@ function RGAPLM(y::Vector{U},X::Union{NT,VecOrMat{U}},T::Union{NT,VecOrMat{U}};
     epsilon_T::U = 1e-6, max_it_T::N = 5,
     epsilon_X::U = 1e-6, maix_it_X::N = 5) where {U <: Float64, N <: Int, St <: String, NT <: Nothing}
 
+    # initialization
     n::N = length(y)
     _, p::N = size_VecOrMat(X)
     _, q::N = size_VecOrMat(T)
+    # S, beta, sigma
 
+    # get the likelihood; convergence in likelihood!
 
+    # global while loop
 
+        # local loop sigma
+
+        # local loop beta + S
+            # local loop beta
+            # local loop S
+
+    # return beta, S, mu, eta, sigma in dic format
 
 end
 

@@ -229,6 +229,10 @@ function g_ZW(family::String,robust_type::String,y::Union{Vector{Int64},Vector{F
             error("$family is not supported.")
         end
 
+    elseif robust_type=="none"
+        return g_link(family,mu) .+ (y .- mu) .* g_derlink(family,mu),
+        1 ./ (g_derlink(family,mu) .^ 2 .* s .^2)
+
     else
         error("$robust_type is not supported.")
     end
@@ -314,6 +318,10 @@ function g_ZW2(family::String,robust_type::String,y::Union{Vector{Int64},Vector{
         else
             error("$family is not supported.")
         end
+
+    elseif robust_type=="none"
+        return g_link(family,mu) .+ (y .- mu) .* g_derlink(family,mu),
+        1 ./ (g_derlink(family,mu) .^ 2 .* s .^2)
 
     else
         error("$robust_type is not supported.")

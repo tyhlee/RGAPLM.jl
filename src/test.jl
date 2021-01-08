@@ -43,13 +43,61 @@ plot!(t,sum(tmp2[2],dims=2).+tmp2[1])
 plot!(t,y)
 
 # g_ZW
-n = 500
+n = 25
 mu = ceil.(Int,rand(Uniform(0,500),n))
 y = rand.(Poisson.(mu))
 s = sqrt.(mu)
 sigma = 2.0
 c = 1.345
+ttt = collect(1:n)
 
+c = 500.0 # all identical
+tmp = g_ZW("P","none",y,mu,s,c,sigma)
+tmp1 =g_ZW("P","Huber",y,mu,s,c,sigma)
+tmp2 = g_ZW("P","Tukey",y,mu,s,c,sigma)
+plot(ttt,tmp[1])
+plot!(ttt,tmp1[1])
+plot!(ttt,tmp2[1])
+plot(ttt,tmp[2])
+plot!(ttt,tmp1[2])
+plot!(ttt,tmp2[2])
+
+c = 1.0 # should see some difference
+tmp = g_ZW("P","none",y,mu,s,c,sigma)
+tmp1 =g_ZW("P","Huber",y,mu,s,c,sigma)
+tmp2 = g_ZW("P","Tukey",y,mu,s,c,sigma)
+plot(ttt,tmp[1])
+plot!(ttt,tmp1[1])
+plot!(ttt,tmp2[1])
+plot(ttt,tmp[2])
+plot!(ttt,tmp1[2])
+plot!(ttt,tmp2[2])
+
+c = 500.0 # should be identical across all three
+tmp = g_ZW("NB","none",y,mu,sqrt.(mu .+ mu .^2 .* sigma),c,sigma)
+tmp1 =g_ZW("NB","Huber",y,mu,sqrt.(mu .+ mu .^2 .* sigma),c,sigma)
+tmp2 = g_ZW("NB","Tukey",y,mu,sqrt.(mu .+ mu .^2 .* sigma),c,sigma)
+plot(ttt,tmp[1])
+plot!(ttt,tmp1[1])
+plot!(ttt,tmp2[1])
+plot(ttt,tmp[2])
+plot!(ttt,tmp1[2])
+plot!(ttt,tmp2[2])
+
+c = 1.0 # should see some differences
+tmp = g_ZW("NB","none",y,mu,sqrt.(mu .+ mu .^2 .* sigma),c,sigma)
+tmp1 =g_ZW("NB","Huber",y,mu,sqrt.(mu .+ mu .^2 .* sigma),c,sigma)
+tmp2 = g_ZW("NB","Tukey",y,mu,sqrt.(mu .+ mu .^2 .* sigma),c,sigma)
+plot(ttt,tmp[1])
+plot!(ttt,tmp1[1])
+plot!(ttt,tmp2[1])
+plot(ttt,tmp[2])
+plot!(ttt,tmp1[2])
+plot!(ttt,tmp2[2])
+
+# performance
+sigma = 2.0
+c = 1.345
 @benchmark g_ZW("P","Huber",y,mu,s,c,sigma)
 @benchmark g_ZW("P","Tukey",y,mu,s,c,sigma)
 @benchmark g_ZW("NB","Huber",y,mu,sqrt.(mu .+ mu .^2 .* sigma),c,sigma)
@@ -58,7 +106,6 @@ c = 1.345
 
 tmp = g_ZW("NB","Tukey",y,mu,sqrt.(mu .+ mu .^2 .* sigma),c,sigma)
 tmp2 =g_ZW2("NB","Tukey",y,mu,sqrt.(mu .+ mu .^2 .* sigma),c,sigma)
-ttt = collect(1:n)
 plot(ttt,tmp[1])
 plot!(ttt,tmp2[1])
 plot(ttt,tmp[1] .- tmp2[1])
