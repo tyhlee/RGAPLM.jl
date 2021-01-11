@@ -34,6 +34,7 @@ plot!(t,tmp)
 plot!(t,tmp2)
 
 # AM, RAM
+degree = ones(Int64,3)
 tmp = AM(youtlier,X,w,span=span,loess_degree=degree,max_it=max_it)
 tmp2 = RAM(youtlier,X,w;
         span=span,loess_degree=degree,max_it=5,max_it_loess=10,c=c,sigma=0.2,max_it_global=5)
@@ -47,11 +48,11 @@ n = 25
 mu = ceil.(Int,rand(Uniform(0,500),n))
 y = rand.(Poisson.(mu))
 s = sqrt.(mu)
-sigma = 2.0
+sigma = 2
 c = 1.345
 ttt = collect(1:n)
 
-c = 500.0 # all identical
+c = 500 # all identical
 tmp = g_ZW("P","none",y,mu,s,c,sigma)
 tmp1 =g_ZW("P","Huber",y,mu,s,c,sigma)
 tmp2 = g_ZW("P","Tukey",y,mu,s,c,sigma)
@@ -62,7 +63,7 @@ plot(ttt,tmp[2])
 plot!(ttt,tmp1[2])
 plot!(ttt,tmp2[2])
 
-c = 1.0 # should see some difference
+c =  2 # should see some difference
 tmp = g_ZW("P","none",y,mu,s,c,sigma)
 tmp1 =g_ZW("P","Huber",y,mu,s,c,sigma)
 tmp2 = g_ZW("P","Tukey",y,mu,s,c,sigma)
@@ -121,4 +122,63 @@ tmp2[1][30]
 y[30]
 mu[30]
 
-# TODO: test with classic and let c= large number
+# test RGAPLM
+t = collect([1.0:1.0:365;])
+tsq = t.^2
+esp = rand(length(t))
+X = [ones(length(t)) t]
+beta = [1, 0.001]
+T = [sin.((2*7*pi).*t./365) cos.((2*7*pi).*t./365)]
+T = T .- sum(T,dims=1)
+eta = vec(X * beta .+ sum(T,dims=2))
+mu = exp.(eta)
+y = rand.(Poisson.(mu))
+youtlier = copy(y)
+w = ones(length(y))
+span = repeat([0.15],size(T)[2])
+degree = ones(Int,size(T)[2])
+c = 500.0
+max_it = 50
+
+Pan_P = RGAPLM(y,X,T,
+    family ="P", method = "Pan",
+    span=span,loess_degree=degree,
+    beta=nothing,
+    sigma= 1.0,
+    c=c, robust_type ="Tukey",
+    c_X=1.345, robust_type_X ="Tukey",
+    c_T=1.345, robust_type_T ="Tukey",
+    epsilon=1e-6, max_it = 50,
+    epsilon_T = 1e-6, max_it_T = 5,
+    epsilon_X = 1e-6, maix_it_X = 5)
+
+plot(t,y)
+plot!(t,Pan_P.mu)
+plot(t,mu)
+plot!(t,Pan_P.mu)
+println(beta)
+println(Pan_P.beta)
+
+# inject some outliers
+y[100:103] = ceil.(Int,y[100:103].*2.5)
+c=3.5
+Pan_P = RGAPLM(y,X,T,
+    family ="P", method = "Pan",
+    span=span,loess_degree=degree,
+    beta=nothing,
+    sigma= 1.0,
+    c=c, robust_type ="Tukey",
+    c_X=1.345, robust_type_X ="Tukey",
+    c_T=1.345, robust_type_T ="Tukey",
+    epsilon=1e-6, max_it = 50,
+    epsilon_T = 1e-6, max_it_T = 5,
+    epsilon_X = 1e-6, maix_it_X = 5)
+
+plot(t,y)
+plot!(t,Pan_P.mu)
+png("figs/Poisson_Pan")
+plot(t,mu)
+plot!(t,Pan_P.mu)
+png("figs/Poisson_Pan_mu")
+println(beta)
+println(Pan_P.beta)

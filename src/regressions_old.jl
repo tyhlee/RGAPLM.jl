@@ -6,8 +6,32 @@ using Debugger
 using Plots
 include("utils.jl")
 
+type_VecFloat = Vector{Float64}
+type_VecInt = Vector{Int64}
+type_VecFloatInt = Union{type_VecInt,type_VecFloat}
+type_VecOrMatFloat = VecOrMat{Float64}
+type_VecOrMatInt = VecOrMat{Int64}
+type_VecOrMatFloatInt = Union{type_VecOrMatFloat,type_VecOrMatInt}
+
 # weighted least squares
-function wls(y::type_VecFloatInt,
+function wls(y::Vector{T},
+    X::VecOrMat{T},
+    w::Vector{R}=ones(length(y)),
+    method=:qr) where {T <: Float64, R <: Real}
+
+    if size(y) != size(w)
+        throw(DimensionMisMatch("y and w must have the same length"))
+    end
+
+    if method == :qr
+        w = sqrt.(w)
+        return (Diagonal(w)*X \ (w .* y))
+    else
+        error("Method: $method is not supported. It should be :qr")
+    end
+end
+
+function wls1(y::type_VecFloat,
     X::type_VecOrMatFloatInt,
     w::type_VecFloatInt=ones(length(y)),
     method=:qr)
@@ -25,12 +49,12 @@ function wls(y::type_VecFloatInt,
 end
 
 # univariate loess
-function loess(y::type_VecFloatInt,
-    x::type_VecFloatInt,
-    xi::type_VecFloatInt,
-    w::type_VecFloatInt=ones(length(y));
-    span::Float64=0.75,
-    degree::Int64=2)
+function loess(y::Vector{T},
+    x::Vector{T},
+    xi::Vector{T},
+    w::Vector{T}=ones(length(y));
+    span::T=0.75,
+    degree::Integer=2) where T <: Float64
 
     # results
     results = similar(y)
@@ -62,16 +86,16 @@ function loess(y::type_VecFloatInt,
 end
 
 # univariate robust loess
-function rloess(y::type_VecFloatInt,
-    x::type_VecFloatInt,
-    xi::type_VecFloatInt,
-    w::type_VecFloatInt=ones(length(y));
-    sigma::type_FloatInt=1.0,
-    span::type_FloatInt=0.75,
+function rloess(y::Vector{T},
+    x::Vector{T},
+    xi::Vector{T},
+    w::Vector{T}=ones(length(y));
+    sigma::T=1.0,
+    span::T=0.75,
     degree::U=2,
-    c::type_FloatInt = 1.345,
+    c::T = 1.345,
     type::String="Huber",
-    epsilon::type_FloatInt = 1e-6,
+    epsilon::T = 1e-6,
     max_it::U=5) where {T <: Float64, U <: Int}
 
     # initalization
@@ -111,10 +135,10 @@ function rloess(y::type_VecFloatInt,
 end
 
 # AM using backfitting
-function AM(y::type_VecFloatInt,X::type_VecOrMatFloatInt,
-    w::type_VecFloatInt=ones(length(y));
-    span::type_VecFloatInt,loess_degree::Vector{N},
-    epsilon::type_FloatInt=1e-6,max_it::N=25, y_mean::type_FloatInt = mean(y)) where {U <: Float64, N<:Int}
+function AM(y::Vector{U},X::VecOrMat{U},
+    w::Vector{U}=ones(length(y));
+    span::Vector{U},loess_degree::Vector{N},
+    epsilon::U=1e-6,max_it::N=25, y_mean::U = mean(y)) where {U <: Float64, N<:Int}
 
     # initialization
     # if there is a vector of ones (intercept), exclude it
@@ -125,9 +149,9 @@ function AM(y::type_VecFloatInt,X::type_VecOrMatFloatInt,
 
     n,k = size_VecOrMat(X)
 
-    crit::Float64 = 10*epsilon
-    iter::Int64 = 0
-    S = zeros(Float64,n,k)
+    crit::U = 10*epsilon
+    iter::N = 0
+    S = zeros(U,n,k)
 
     # fit
     while (crit > epsilon) & (iter < max_it)
@@ -147,17 +171,15 @@ function AM(y::type_VecFloatInt,X::type_VecOrMatFloatInt,
         iter += 1
         crit = compute_crit(S,S_tmp)/n
     end
-    return (alpha=y_mean,S=S)
+    return y_mean,S
 end
 
 # helper function for RAM
-function robust_intercept(y::type_VecFloatInt,mu::type_VecFloatInt=median(y),w::type_VecFloatInt=ones(length(y));
-    sigma::type_VecFloatInt=1.0,
-    type::String="Huber",c::type_VecFloatInt=1.345,
-    epsilon::type_VecFloatInt=1e-6,max_it::N=10) where{T<: Float64, N <:Int}
+function robust_intercept(y::Vector{T},mu::T=median(y),w::Vector{T}=ones(length(y));sigma::T=1.0,
+    type::String="Huber",c::T=1.345,epsilon::T=1e-6,max_it::N=10) where{T<: Float64, N <:Int}
 
-    iter::Int64 = 0
-    crit::type_FloatInt = epsilon*10
+    iter::Int = 0
+    crit::T = epsilon*10
     w = w ./ sigma
     wsq = w.^2
     ww = similar(w)
@@ -175,13 +197,12 @@ function robust_intercept(y::type_VecFloatInt,mu::type_VecFloatInt=median(y),w::
 end
 
 # robust AM using backfitting
-function RAM(y::type_VecFloatInt,X::type_VecOrMatFloatInt,w::type_VecFloatInt=ones(length(y));
-    span::type_VecFloatInt,loess_degree::Vector{N},
-    max_it_loess::N = 10, epsilon_loess::type_FloatInt= 1e-6,
-    type::String="Huber",c::type_FloatInt = 1.345,
-    sigma::type_FloatInt = 0.0, epsilon::type_FloatInt=1e-6,max_it::N=10, alpha::type_FloatInt = median(y),
-    epsilon_global::type_FloatInt = 1e-6, max_it_global::N = 5,
-    update_intercept::Bool = true) where {U <: Float64, N<:Int64}
+function RAM(y::Vector{U},X::VecOrMat{U},w::Vector{U}=ones(length(y));
+    span::Vector{U},loess_degree::Vector{U},
+    max_it_loess::N = 10, epsilon_loess::U= 1e-6,
+    type::String="Huber",c::U = 1.345,
+    sigma::U = 0.0, epsilon::U=1e-6,max_it::N=10, alpha::U = median(y),
+    epsilon_global = 1e-6, max_it_global = 5) where {U <: Float64, N<:Int}
 
     # initialization
     # if there is a vector of ones (intercept), exclude it
@@ -191,9 +212,9 @@ function RAM(y::type_VecFloatInt,X::type_VecOrMatFloatInt,w::type_VecFloatInt=on
         X = X[:,tmp_index]
     end
 
-    n::Int64,k::Int64 = size_VecOrMat(X)
+    n,k = size_VecOrMat(X)
 
-    S = zeros(Float64,n,k)
+    S = zeros(U,n,k)
 
     if sigma==0.0
         _, sigma = scaletau2(y)
@@ -203,8 +224,8 @@ function RAM(y::type_VecFloatInt,X::type_VecOrMatFloatInt,w::type_VecFloatInt=on
         sigma = 1e-10
     end
 
-    global_crit::Float64 = 10*epsilon_global
-    global_iter::Int64 = 0
+    global_crit::U = 10*epsilon_global
+    global_iter::N = 0
 
     # fit
     while (global_crit > epsilon_global) & (global_iter < max_it_global)
@@ -213,6 +234,7 @@ function RAM(y::type_VecFloatInt,X::type_VecOrMatFloatInt,w::type_VecFloatInt=on
         # update f
         while (crit > epsilon) & (iter < max_it)
             S_tmp = copy(S)
+            alpha_tmp = copy(alpha)
 
             if k==1
                 S = rloess(y .- alpha,X,X,w,sigma=sigma,span=span[1],degree=loess_degree[1],type=type,c=c,
@@ -228,17 +250,13 @@ function RAM(y::type_VecFloatInt,X::type_VecOrMatFloatInt,w::type_VecFloatInt=on
             S = S .- mean(S,dims=1)
 
             # update the intercept
-            if update_intercept
-                alpha_tmp = copy(alpha)
-                alpha = robust_intercept(y .- vec(sum(S,dims=2)), alpha_tmp,w,
-                sigma = sigma,type=type,c=c,epsilon=epsilon_loess,max_it=max_it_loess)
-                crit = compute_crit(S,S_tmp)/n + compute_crit([alpha],[alpha_tmp])
-            else
-                crit = compute_crit(S,S_tmp)/n
-            end
+            alpha = robust_intercept(y .- vec(sum(S,dims=2)), alpha_tmp,w,
+            sigma = sigma,type=type,c=c,epsilon=epsilon_loess,max_it=max_it_loess)
+            println("alpha: ",alpha)
 
             # update crit & iter
             iter += 1
+            crit = compute_crit(S,S_tmp)/n + compute_crit([alpha],[alpha_tmp])
         end
 
         # update sigma
@@ -247,121 +265,27 @@ function RAM(y::type_VecFloatInt,X::type_VecOrMatFloatInt,w::type_VecFloatInt=on
 
         global_crit = copy(crit + compute_crit([sigma],[tmp_sigma]))
         global_iter += 1
+        println(global_iter,"th sigma:",sigma)
+        println(global_iter,"th Global Crit:",global_crit)
     end
 
-    return (alpha=alpha, S=S, sigma=simga)
+    return alpha, S, sigma
 end
 
 # implement RGAPLM for Normal, Poisson, NB
-function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMatFloatInt;
-    family::St ="NB", method::St = "Pan", link::St="log", verbose=true,
-    span::type_VecFloatInt,loess_degree::Vector{N},
-    sigma::type_FloatInt= 1.0,
-    beta::Union{Nothing,Float64,Int64,Vector{Float64},Vector{Int64}}=nothing,
-    c::U=1.345, robust_type::St ="Tukey",
+function RGAPLM(y::Union{Vector{N},Vector{U}},X::Union{NT,VecOrMat{U}},T::Union{NT,VecOrMat{U}};
+    span::Vector{U},degree::Vector{N},
+    c::U=1.34.5, robust_type::St ="Tukey",
     c_X::U=1.345, robust_type_X::St ="Tukey",
     c_T::U=1.345, robust_type_T::St ="Tukey",
     epsilon::U=1e-6, max_it::N = 100,
     epsilon_T::U = 1e-6, max_it_T::N = 5,
-    epsilon_X::U = 1e-6, maix_it_X::N = 5) where {U <: type_FloatInt, N <: Int64, St <: String}
+    epsilon_X::U = 1e-6, maix_it_X::N = 5) where {U <: Float64, N <: Int64, St <: String, NT <: Nothing}
 
     # initialization
-    n::Int64 = length(y)
-    _, p::Int64 = size_VecOrMat(X)
-    _, q::Int64 = size_VecOrMat(T)
-    crit::Float64 = copy(epsilon)
-    crit_T::Float64 = copy(epsilon)
-    crit_X::Float64 = copy(epsilon)
-    iter::Int64 = 0
-    iter_X::Int64 = 0
-    iter_T::Int64 = 0
-
-    if p ==0 & q == 0
-        error("No data is provided.")
-    end
-
-    eta = similar(y)
-    mu = similar(y)
-    z = similar(y)
-    w = similar(y)
-
-    if p != 0
-        if beta == nothing
-            beta = zeros(p)
-        else
-            if p != length(beta)
-                error("The number of initial beta values does not match the number of variables in X.")
-            end
-        end
-    end
-
-    if q != 0
-        S::type_VecOrMatFloatInt = zeros(n,q)
-    end
-
-    # assume p and q are not zero !
-    if family == "P"
-        # mean belongs to X
-
-        if method == "Pan"
-
-            # initialization
-            par = vec(X * beta)
-            eta = copy(par)
-            mu = g_invlink(family,eta)
-            s = sqrt.(g_var(family,mu,sigma))
-            z, w = g_ZW(family,robust_type,y,mu,s,c,sigma)
-            par_res = vec(z .- par)
-
-            crit =  epsilon + 1
-            iter = 0
-
-            # start the loop
-            while (crit > epsilon) & (iter < max_it)
-                # estimate S
-                tmp_S = copy(S)
-                S = AM(par_res,T,w,span=span,loess_degree=loess_degree,epsilon=epsilon_T,max_it=max_it_T,y_mean=beta[1]).S
-
-                nonpar = sum(S,dims=2)
-                # estimate beta
-                tmp_beta = copy(beta)
-                beta = wls(vec(z .- nonpar),X,w)
-                par = X * beta
-
-                # update eta, mu, Z, W
-                eta = vec(par .+ nonpar)
-                mu = g_invlink(family,eta)
-                s = sqrt.(g_var(family,mu,sigma))
-                z,w = g_ZW(family,robust_type,y,mu,s,c,sigma)
-                par_res = vec(z .- par)
-                crit = compute_crit(S,tmp_S,"norm2_change") .+ compute_crit(beta,tmp_beta,"norm2_change")
-                iter += 1
-            end
-            # end of Pan Poisson
-            if verbose==1
-                println("Pan Poisson fitted with $iter iterations and $crit crit")
-            end
-            return (eta=eta,mu=mu,z=z,w=w,beta=beta,S=S,s=s)
-
-        elseif method == "Lee"
-
-
-            return "end of Lee Poisson"
-        else
-            error("Method $method is not supproted.")
-        end # end of family Poisson
-
-    elseif family =="NB"
-
-        if method == "Pan"
-        elseif method =="Lee"
-        else
-            error("Method $method is not supported.")
-        end
-
-    else
-        error("Family $family is not supported.")
-    end
+    n::N = length(y)
+    _, p::N = size_VecOrMat(X)
+    _, q::N = size_VecOrMat(T)
 
     # S, beta, sigma
 
@@ -378,5 +302,5 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
             # local loop S
 
     # return beta, S, mu, eta, sigma in dic format
-    (a=3, b="hi")
+
 end
