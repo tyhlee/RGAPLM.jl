@@ -65,7 +65,7 @@ function compute_crit(X::type_VecOrMatFloatInt,XX::type_VecOrMatFloatInt,type="n
     elseif type=="norm2_change"
         return norm(X-XX)/norm(XX)
     else
-        error("Compute crit type is not supported")
+        error("Compute crit $type is not supported")
     end
 end
 
@@ -177,7 +177,7 @@ function g_var(family::String,mu::type_VecFloatInt,sigma::Union{Nothing,Int64,Fl
     end
 end
 
-# GLM robust Z (adjusted variable) and W (weights)
+# compute GLM robust Z (adjusted variable) and W (weights)
 function g_ZW(family::String,robust_type::String,y::type_VecFloatInt,mu::type_VecFloatInt,
     s::type_VecFloatInt,c::type_FloatInt,sigma::Union{Nothing,Float64,Int64})
 

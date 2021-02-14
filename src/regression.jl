@@ -354,7 +354,9 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
     elseif family =="NB"
 
         if method == "Pan"
+
         elseif method =="Lee"
+
         else
             error("Method $method is not supported.")
         end
