@@ -1,5 +1,5 @@
 # type declarations
-type_VecFloat = Vector{Float64}
+type_VecFloat = Union{Float64,Vector{Float64}}
 type_VecInt = Vector{Int64}
 type_VecFloatInt = Union{type_VecInt,type_VecFloat}
 type_VecReal = Vector{Real}
@@ -11,8 +11,8 @@ type_VecFloatIntFloatInt = Union{Int64,Float64,type_VecInt,type_VecFloat}
 type_NTVecOrMatFloatInt = Union{Nothing,type_VecOrMatFloat,type_VecOrMatInt}
 
 function tricube(u::type_VecFloatInt)
-    map(x -> abs(x) <= 1.0 ? (1-x^3)^3 : 0,u)
     # (1 .- u.^3).^3
+    map(x -> abs(x) <= 1.0 ? (1-x^3)^3 : 0,u)
 end
 
 # create the design matrix for loess
@@ -177,7 +177,7 @@ function g_var(family::String,mu::type_VecFloatInt,sigma::Union{Nothing,Int64,Fl
     end
 end
 
-# compute GLM robust Z (adjusted variable) and W (weights)
+# compute GLM robust Z (adjusted response variable) and W (weights)
 function g_ZW(family::String,robust_type::String,y::type_VecFloatInt,mu::type_VecFloatInt,
     s::type_VecFloatInt,c::type_FloatInt,sigma::Union{Nothing,Float64,Int64})
 

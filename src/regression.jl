@@ -4,6 +4,7 @@ using RDatasets
 using Distributions, StatsFuns
 using Debugger
 using Plots
+using Printf
 include("utils.jl")
 
 # weighted least squares
@@ -150,7 +151,7 @@ function AM(y::type_VecFloatInt,X::type_VecOrMatFloatInt,
     return (alpha=y_mean,S=S)
 end
 
-# helper function for RAM
+# helper function for robust AM
 function robust_intercept(y::type_VecFloatInt,mu::type_VecFloatInt=median(y),w::type_VecFloatInt=ones(length(y));
     sigma::type_VecFloatInt=1.0,
     type::String="Huber",c::type_VecFloatInt=1.345,
@@ -252,7 +253,7 @@ function RAM(y::type_VecFloatInt,X::type_VecOrMatFloatInt,w::type_VecFloatInt=on
     return (alpha=alpha, S=S, sigma=simga)
 end
 
-# implement RGAPLM for Normal, Poisson, NB
+# implement RGAPLM for Poisson and NB
 function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMatFloatInt;
     family::St ="NB", method::St = "Pan", link::St="log", verbose=true,
     span::type_VecFloatInt,loess_degree::Vector{N},
@@ -288,6 +289,8 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
     if p != 0
         if beta == nothing
             beta = zeros(p)
+            # use the median for the initial estimate
+            beta[1] = g_link(family,median(y),link=link)
         else
             if p != length(beta)
                 error("The number of initial beta values does not match the number of variables in X.")
@@ -302,7 +305,6 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
     # assume p and q are not zero !
     if family == "P"
         # mean belongs to X
-
         if method == "Pan"
 
             # initialization
@@ -339,14 +341,64 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
             end
             # end of Pan Poisson
             if verbose==1
-                println("Pan Poisson fitted with $iter iterations and $crit crit")
+                @sprintf("Pan Poisson fitted with %.0f iterations and converged with %.2E",iter,crit)
             end
+
             return (eta=eta,mu=mu,z=z,w=w,beta=beta,S=S,s=s)
 
         elseif method == "Lee"
+            # initialization
+            # non-robust !
+            par = vec(X * beta)
+            eta = copy(par)
+            mu = g_invlink(family,eta)
+            s = sqrt.(g_var(family,mu,sigma))
+            z, w = g_ZW(family,"none",y,mu,s,c,sigma)
+            robust_z = similar(z)
+            robust_w = similar(w)
+            par_res = vec(z .- par)
 
+            crit =  epsilon + 1
+            iter = 0
 
-            return "end of Lee Poisson"
+            # start the loop
+            while (crit > epsilon) & (iter < max_it)
+                # estimate S robustly
+                tmp_S = copy(S)
+                S = RAM(par_res,T,w,span=span,loess_degree=loess_degree,epsilon=epsilon_T,max_it=max_it_T,
+                max_it_loess=10,epsilon_loess::type_FloatInt= 1e-6,type=robust_type_T,
+                c=c_T,sigma=1.0, alpha=0.0,update_intercept=false,
+                max_it_global=1).S
+
+                nonpar = sum(S,dims=2)
+
+                # construct robust Z,W to estimate beta
+                while (crit_X > epsilon_X) & (iter_X < maix_it_X)
+                    mu = g_invlink(family,eta= nonpar .+ par ;link=link)
+                    s = sqrt.(g_var(family,mu,sigma))
+                    robust_z, robust_w = g_ZW(family,robust_type,y,mu,s,c,sigma)
+                    tmp_beta = copy(beta)
+                    beta = wls(vec(robust_z .- nonpar),X,robust_w)
+                    par = X * beta
+                    crit_X = compute_crit(beta,tmp_beta,"norm2_change")
+                    iter_X += 1
+                end
+
+                # update eta, mu, Z, W
+                eta = vec(par .+ nonpar)
+                mu = g_invlink(family,eta)
+                s = sqrt.(g_var(family,mu,sigma))
+                z, w = g_ZW(family,"none",y,mu,s,c,sigma)
+                par_res = vec(z .- par)
+                crit = compute_crit(S,tmp_S,"norm2_change") .+ compute_crit(beta,tmp_beta,"norm2_change")
+                iter += 1
+            end
+            # end of Pan Poisson
+            if verbose==1
+                @printf("Lee Poisson fitted with %.0f iterations and converged with %.2E",iter,crit)
+            end
+
+            return (eta=eta,mu=mu,z=z,w=w,beta=beta,S=S,s=s)
         else
             error("Method $method is not supproted.")
         end # end of family Poisson
