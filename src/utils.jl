@@ -1,7 +1,9 @@
 # type declarations
 type_VecFloat = Union{Float64,Vector{Float64}}
 type_VecInt = Vector{Int64}
+type_VecReal = Vector{Real}
 type_VecFloatInt = Union{type_VecInt,type_VecFloat}
+type_VecRealFloatInt = Union{type_VecInt,type_VecFloat,type_VecReal}
 type_VecReal = Vector{Real}
 type_VecOrMatFloat = VecOrMat{Float64}
 type_VecOrMatInt = VecOrMat{Int64}

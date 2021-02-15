@@ -122,7 +122,7 @@ tmp2[1][30]
 y[30]
 mu[30]
 
-# test RGAPLM
+# test RGAPLM - Poisson Pan
 t = collect([1.0:1.0:365;])
 tsq = t.^2
 esp = rand(length(t))
@@ -146,18 +146,18 @@ Pan_P = RGAPLM(y,X,T,
     beta=nothing,
     sigma= 1.0,
     c=c, robust_type ="Tukey",
-    c_X=1.345, robust_type_X ="Tukey",
-    c_T=1.345, robust_type_T ="Tukey",
+    c_X=c, robust_type_X ="Tukey",
+    c_T=c, robust_type_T ="Tukey",
     epsilon=1e-6, max_it = 50,
-    epsilon_T = 1e-6, max_it_T = 5,
-    epsilon_X = 1e-6, maix_it_X = 5)
-
+    epsilon_T = 1e-6, max_it_T = 50,
+    epsilon_X = 1e-6, max_it_X = 50);
+# 8 iterations!
 plot(t,y)
 plot!(t,Pan_P.mu)
 plot(t,mu)
 plot!(t,Pan_P.mu)
-println(beta)
-println(Pan_P.beta)
+plot(beta,seriestype = :scatter,title="β")
+plot!(Pan_P.beta,seriestype = :scatter)
 
 # inject some outliers
 y[100:103] = ceil.(Int,y[100:103].*2.5)
@@ -168,11 +168,11 @@ Pan_P = RGAPLM(y,X,T,
     beta=nothing,
     sigma= 1.0,
     c=c, robust_type ="Tukey",
-    c_X=1.345, robust_type_X ="Tukey",
-    c_T=1.345, robust_type_T ="Tukey",
+    c_X=c, robust_type_X ="Tukey",
+    c_T=c, robust_type_T ="Tukey",
     epsilon=1e-6, max_it = 50,
     epsilon_T = 1e-6, max_it_T = 5,
-    epsilon_X = 1e-6, maix_it_X = 5)
+    epsilon_X = 1e-6, max_it_X = 5);
 
 plot(t,y)
 plot!(t,Pan_P.mu)
@@ -180,5 +180,78 @@ png("figs/Poisson_Pan")
 plot(t,mu)
 plot!(t,Pan_P.mu)
 png("figs/Poisson_Pan_mu")
-println(beta)
-println(Pan_P.beta)
+plot(beta,seriestype = :scatter,title="β")
+plot!(Pan_P.beta,seriestype = :scatter)
+png("figs/Poisson_Pan_beta")
+
+# test RGAPLM - Poisson Lee
+method = "Lee"
+family = "P"
+t = collect([1.0:1.0:365;])
+tsq = t.^2
+esp = rand(length(t))
+X = [ones(length(t)) t]
+beta = [1, 0.001]
+T = [sin.((2*7*pi).*t./365) cos.((2*7*pi).*t./365)]
+T = T .- sum(T,dims=1)
+eta = vec(X * beta .+ sum(T,dims=2))
+mu = exp.(eta)
+y = rand.(Poisson.(mu))
+youtlier = copy(y)
+w = ones(length(y))
+span = repeat([0.15],size(T)[2])
+degree = ones(Int,size(T)[2])
+c = 5000.0
+max_it = 50
+
+model = RGAPLM(y,X,T,
+    family =family, method = method,
+    span=span,loess_degree=degree,
+    beta=nothing,
+    sigma= 1.0,
+    c=c, robust_type ="Tukey",
+    c_X=c, robust_type_X ="Tukey",
+    c_T=c, robust_type_T ="Tukey",
+    epsilon=1e-6, max_it = 50,
+    epsilon_T = 1e-6, max_it_T = 10,
+    epsilon_X = 1e-6, max_it_X = 10,
+    epsilon_RAM=1e-6, max_it_RAM=10);
+
+model.convergence
+
+plot(t,y)
+plot!(t,Pan_P.mu)
+plot!(t,model.mu)
+plot(t,mu)
+plot!(t,model.mu)
+plot!(t,Pan_P.mu)
+plot(beta,seriestype = :scatter,title="β")
+plot!(model.beta,seriestype = :scatter)
+plot!(Pan_P.beta,seriestype = :scatter)
+
+# inject some outliers
+y[100:103] = ceil.(Int,y[100:103].*2.5)
+c=3.5
+include("regression.jl")
+model = RGAPLM(y,X,T,
+    family =family, method = method,
+    span=span,loess_degree=degree,
+    beta=nothing,
+    sigma= 1.0,
+    c=c, robust_type ="Tukey",
+    c_X=c, robust_type_X ="Tukey",
+    c_T=c*1.5, robust_type_T ="Tukey",
+    epsilon=1e-6, max_it = 15,
+    epsilon_T = 1e-6, max_it_T = 5,
+    epsilon_X = 1e-6, max_it_X = 15,
+    epsilon_RAM=1e-6, max_it_RAM=5);
+
+plot(t,y)
+plot!(t,model.mu)
+png("figs/Poisson_Lee")
+plot(t,mu)
+plot!(t,model.mu)
+png("figs/Poisson_Lee_mu")
+plot(beta,seriestype = :scatter,title="β")
+plot!(model.beta,seriestype = :scatter)
+png("figs/Poisson_Lee_beta")

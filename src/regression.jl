@@ -10,7 +10,7 @@ include("utils.jl")
 # weighted least squares
 function wls(y::type_VecFloatInt,
     X::type_VecOrMatFloatInt,
-    w::type_VecFloatInt=ones(length(y)),
+    w::type_VecRealFloatInt=ones(length(y)),
     method=:qr)
 
     if size(y) != size(w)
@@ -250,7 +250,7 @@ function RAM(y::type_VecFloatInt,X::type_VecOrMatFloatInt,w::type_VecFloatInt=on
         global_iter += 1
     end
 
-    return (alpha=alpha, S=S, sigma=simga)
+    return (alpha=alpha, S=S, sigma=sigma)
 end
 
 # implement RGAPLM for Poisson and NB
@@ -264,7 +264,8 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
     c_T::U=1.345, robust_type_T::St ="Tukey",
     epsilon::U=1e-6, max_it::N = 100,
     epsilon_T::U = 1e-6, max_it_T::N = 5,
-    epsilon_X::U = 1e-6, maix_it_X::N = 5) where {U <: type_FloatInt, N <: Int64, St <: String}
+    epsilon_X::U = 1e-6, max_it_X::N = 5,
+    epsilon_RAM::U = 1e-6, max_it_RAM::N = 10) where {U <: type_FloatInt, N <: Int64, St <: String}
 
     # initialization
     n::Int64 = length(y)
@@ -285,6 +286,7 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
     mu = similar(y)
     z = similar(y)
     w = similar(y)
+    alpha::Float64 = 0.0
 
     if p != 0
         if beta == nothing
@@ -324,7 +326,7 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
                 tmp_S = copy(S)
                 S = AM(par_res,T,w,span=span,loess_degree=loess_degree,epsilon=epsilon_T,max_it=max_it_T,y_mean=beta[1]).S
 
-                nonpar = sum(S,dims=2)
+                nonpar = vec(sum(S,dims=2))
                 # estimate beta
                 tmp_beta = copy(beta)
                 beta = wls(vec(z .- nonpar),X,w)
@@ -341,10 +343,10 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
             end
             # end of Pan Poisson
             if verbose==1
-                @sprintf("Pan Poisson fitted with %.0f iterations and converged with %.2E",iter,crit)
+                @printf("Pan Poisson fitted with %.0f iterations and converged with %.2E",iter,crit)
             end
 
-            return (eta=eta,mu=mu,z=z,w=w,beta=beta,S=S,s=s)
+            return (eta=eta,mu=mu,z=z,w=w,beta=beta,S=S,s=s,convergence=Dict(:iter => iter, :crit => crit))
 
         elseif method == "Lee"
             # initialization
@@ -357,6 +359,7 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
             robust_z = similar(z)
             robust_w = similar(w)
             par_res = vec(z .- par)
+            tmp_beta = copy(beta)
 
             crit =  epsilon + 1
             iter = 0
@@ -365,18 +368,22 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
             while (crit > epsilon) & (iter < max_it)
                 # estimate S robustly
                 tmp_S = copy(S)
-                S = RAM(par_res,T,w,span=span,loess_degree=loess_degree,epsilon=epsilon_T,max_it=max_it_T,
-                max_it_loess=10,epsilon_loess::type_FloatInt= 1e-6,type=robust_type_T,
+                alpha, S, _ = RAM(par_res,T,w,span=span,loess_degree=loess_degree,epsilon=epsilon_T,max_it=max_it_T,
+                max_it_loess=max_it_RAM,epsilon_loess= epsilon_RAM,type=robust_type_T,
                 c=c_T,sigma=1.0, alpha=0.0,update_intercept=false,
-                max_it_global=1).S
+                max_it_global=1)
 
-                nonpar = sum(S,dims=2)
+                nonpar = vec(sum(S,dims=2))
+                # beta[1] = beta[1] + alpha
+                # par = X * beta
 
                 # construct robust Z,W to estimate beta
-                while (crit_X > epsilon_X) & (iter_X < maix_it_X)
-                    mu = g_invlink(family,eta= nonpar .+ par ;link=link)
+                crit_X = 10 * epsilon_X
+                iter_X = 0
+                while (crit_X > epsilon_X) & (iter_X < max_it_X)
+                    mu = g_invlink(family,nonpar .+ par ;link=link)
                     s = sqrt.(g_var(family,mu,sigma))
-                    robust_z, robust_w = g_ZW(family,robust_type,y,mu,s,c,sigma)
+                    robust_z, robust_w = g_ZW(family,robust_type,y,mu,s,c_X,sigma)
                     tmp_beta = copy(beta)
                     beta = wls(vec(robust_z .- nonpar),X,robust_w)
                     par = X * beta
@@ -392,13 +399,17 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
                 par_res = vec(z .- par)
                 crit = compute_crit(S,tmp_S,"norm2_change") .+ compute_crit(beta,tmp_beta,"norm2_change")
                 iter += 1
+                if verbose ==1
+                    @show(beta)
+                    @printf("%.0f iter with %.2E crit \n",iter,crit)
+                end
             end
             # end of Pan Poisson
             if verbose==1
-                @sprintf("Lee Poisson fitted with %.0f iterations and converged with %.2E",iter,crit)
+                @printf("Lee Poisson fitted with %.0f iterations and converged with %.2E",iter,crit)
             end
 
-            return (eta=eta,mu=mu,z=z,w=w,beta=beta,S=S,s=s)
+            return (eta=eta,mu=mu,z=z,w=w,beta=beta,S=S,s=s,convergence=Dict(:iter => iter, :crit => crit))
         else
             error("Method $method is not supproted.")
         end # end of family Poisson
