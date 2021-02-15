@@ -232,6 +232,7 @@ plot!(Pan_P.beta,seriestype = :scatter)
 # inject some outliers
 y[100:103] = ceil.(Int,y[100:103].*2.5)
 c=3.5
+span = repeat([0.3],size(T)[2])
 include("regression.jl")
 model = RGAPLM(y,X,T,
     family =family, method = method,
@@ -243,7 +244,7 @@ model = RGAPLM(y,X,T,
     c_T=c*1.5, robust_type_T ="Tukey",
     epsilon=1e-6, max_it = 15,
     epsilon_T = 1e-6, max_it_T = 5,
-    epsilon_X = 1e-6, max_it_X = 15,
+    epsilon_X = 1e-6, max_it_X = 5,
     epsilon_RAM=1e-6, max_it_RAM=5);
 
 plot(t,y)
