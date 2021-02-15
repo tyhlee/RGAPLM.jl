@@ -395,7 +395,7 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
             end
             # end of Pan Poisson
             if verbose==1
-                @printf("Lee Poisson fitted with %.0f iterations and converged with %.2E",iter,crit)
+                @sprintf("Lee Poisson fitted with %.0f iterations and converged with %.2E",iter,crit)
             end
 
             return (eta=eta,mu=mu,z=z,w=w,beta=beta,S=S,s=s)
