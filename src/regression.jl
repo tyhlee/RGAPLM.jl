@@ -1,7 +1,7 @@
 using BenchmarkTools
 using LinearAlgebra
 using RDatasets
-using Distributions, StatsFuns
+using Distributions, StatsFuns, SpecialFunctions
 using Debugger
 using Plots
 using Printf
@@ -265,7 +265,9 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
     epsilon::U=1e-6, max_it::N = 100,
     epsilon_T::U = 1e-6, max_it_T::N = 5,
     epsilon_X::U = 1e-6, max_it_X::N = 5,
-    epsilon_RAM::U = 1e-6, max_it_RAM::N = 10) where {U <: type_FloatInt, N <: Int64, St <: String}
+    epsilon_RAM::U = 1e-6, max_it_RAM::N = 10,
+    initial_beta::Bool = false, maxmu::U=1e5,
+    minmu::U=1e-10} where {U <: type_FloatInt, N <: Int64, St <: String}
 
     # initialization
     n::Int64 = length(y)
@@ -415,6 +417,142 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
         end # end of family Poisson
 
     elseif family =="NB"
+        # vectorized; could be more computationally efficient
+        # GLM components
+        link = g_link
+        invlink = g_invlink
+        derivlink = g_derlink
+        derivinvlink = g_derinvlink
+        varfunc = g_var
+
+        # initial mu computed through Poisson GLM
+        # replace this with my GRBF
+        if initial_beta==false
+            GAPLM_init <- RGAPLM(y,X,T;
+                family="P", method= "Pan", link="log", verbose=false,
+                span=span,loess_degree=loess_degree,
+                sigma= 1.0,
+                beta=beta,
+                c=10000, robust_type ="Tukey",
+                c_X=10000, robust_type_X ="Tukey",
+                c_T=10000, robust_type_T ="Tukey",
+                epsilon=1e-6, max_it = 50} where {U <: type_FloatInt, N <: Int64, St <: String}
+
+            beta <- GAPLM_init.beta
+            mu <- GAPLM_init.mu
+            eta <- g_link(mu)
+            mu[mu .> maxmu] .= maxmu
+            mu[mu .< minmu] .= minmu
+
+            # START HERE AGAIN
+            # sig MLE based on initial mu, with starting value = moment based
+            sigma <- mean((y ./ mu .- 1) .^2)
+            loglkhd.sig1 <- 0
+            loglkhd.sig0 <- loglkhd.sig1+tol+1
+            it.sig <- 0
+
+           # Newton Raphson to calc
+           while (abs(loglkhd.sig1-loglkhd.sig0) >tol & it.sig<maxit.sig){
+             loglkhd.sig0 <- loglkhd(sig=sig,y=y,mu=mu)
+             sig <- sig-score.sig.ML(sig=sig,y=y,mu=mu)/info.sig.ML(sig=sig,y=y,mu=mu)
+             sig <- abs(sig)
+             if (sig>maxsig){sig <- maxsig}
+             loglkhd.sig1 <- loglkhd(sig=sig,y=y,mu=mu)
+             it.sig <- it.sig+1
+           }
+
+           # ML estimations of mu and sig in an alternating fashion
+           full.loglkhd1 <- 0
+           full.loglkhd0 <- full.loglkhd1+tol+1
+           it <- 0
+           beta <- rep(0,ncol(X))
+           par.fitted <- X %*% beta
+
+           # outer loop
+    while(abs(full.loglkhd1-full.loglkhd0) > tol & it < maxit){
+      full.loglkhd0 <- full.loglkhd1
+
+      # estimate mu
+      # TODO: RBF for nonparametric componenets; DONE!
+      loglkhd.mu1 <- 0
+      loglkhd.mu0 <- loglkhd.mu1+tol+1
+      it.mu <- 0
+
+      while(abs(loglkhd.mu1-loglkhd.mu0)/loglkhd.mu0 > tol.mu & it.mu < maxit.mu){
+
+        loglkhd.mu0 <- loglkhd.mu1
+        w.mat <- 1/((derivlink(mu))^2*varfunc(mu,sig))
+        z <- eta+(y-mu)*derivlink(mu)
+
+        # nonpar components #TODO replace with b.f.am
+        nonpar <- AM.bf(y = z - par.fitted, Xp = X.nonpar,epsilon=tol.nonpar,span=span,windows=windows,weight=w.mat,
+                        max.it=maxit.nonpar,degree=loess.degree,kernel=loess.kernel)
+        nonpar.fitted <- rowSums(cbind(nonpar$alpha,nonpar$s))
+
+        # par components
+        if (interceptonly){
+          wls <- lm(z-nonpar.fitted~1,weights=w.mat,offset=offset)
+        } else {
+          wls <- lm(z-nonpar.fitted~X-1,weights=w.mat,offset=offset)
+        }
+
+        # update
+        beta <- coef(wls)
+        par.fitted <- fitted(wls)
+        eta <- par.fitted + nonpar.fitted
+        mu <- invlink(eta)
+
+        # sanity check
+        mu[which(mu>maxmu)] <- maxmu
+        mu[which(mu<minmu)] <- minmu
+
+        loglkhd.mu1 <- loglkhd(y=y,sig=sig,mu=mu)
+        it.mu <- it.mu+1
+      }
+
+      # esimate sigma
+      loglkhd.sig1 <- 0
+      loglkhd.sig0 <- loglkhd.sig1+tol+1
+      it.sig <- 0
+      while (abs(loglkhd.sig1-loglkhd.sig0)>tol.sig & it.sig<maxit.sig){
+        loglkhd.sig0 <- loglkhd(sig=sig,y=y,mu=mu)
+        sig <- sig-score.sig.ML(sig=sig,y=y,mu=mu)/info.sig.ML(sig=sig,y=y,mu=mu)
+        sig <- abs(sig)
+        if (sig>maxsig){sig <- maxsig}
+        loglkhd.sig1 <- loglkhd(sig=sig,y=y,mu=mu)
+        it.sig <- it.sig+1
+      }
+
+      # update
+      full.loglkhd1 <- loglkhd(y=y,sig=sig,mu=mu)
+      it <- it+1
+    } # if initial values are provided
+    beta[1] <- beta[1] + nonpar$alpha
+  } else { # use the supplied initial values;
+    if (interceptonly){ # sanity checkers
+      if (length(param.ini)!=2){
+        stop('length(param.ini) should be 1 for the intercept + 1 for sigma.')
+      }
+      eta <- rep(param.ini[2],n)
+    } else {
+      if (length(param.ini)!=dim(X)[2]+1){
+        stop('length(param.ini) should be number of covariates + 1 for the intercept + 1 for sigma.')
+      }
+      eta <- as.numeric(X%*%param.ini[-1]) + initial.T
+    }
+    sig <- param.ini[1]
+    beta <- param.ini[-1]
+    mu <- invlink(eta)
+    mu[which(mu>maxmu)] <- maxmu
+    mu[which(mu<minmu)] <- minmu
+  }
+  if(trace) {print('Initial Param Done')
+    # if(!missing(initial.beta)) {beta <- initial.beta}
+    print(c(sig,beta))}
+
+
+
+
 
         if method == "Pan"
 

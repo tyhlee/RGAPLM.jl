@@ -159,6 +159,15 @@ function g_derlink(family::String,mu::type_VecFloat;link::String="log")
     end
 end
 
+# GLM derivative of inv link function
+function g_derlink(family::String,eta::type_VecFloat;link::String="log")
+    if link == "log"
+        return exp.(eta)
+    else
+        erro("$link is not supported.")
+    end
+end
+
 # GLM weight functions
 function g_weight(family::String,mu::type_VecFloat;link::String="log")
     if link == "log"
@@ -173,7 +182,7 @@ function g_var(family::String,mu::type_VecFloatInt,sigma::Union{Nothing,Int64,Fl
     if family == "P"
         return mu
     elseif family =="NB"
-        return mu .+ mu .^2 * sigma
+        return mu .+ (mu .^2) .* sigma
     else
         erro("$link is not supported.")
     end
@@ -269,4 +278,21 @@ function g_ZW(family::String,robust_type::String,y::type_VecFloatInt,mu::type_Ve
     g_link(family,mu) .+ s .* (psi( (y .- mu) ./ s, c,robust_type) .- E1) .*
     g_derlink(family,mu) ./ E2, E2 ./ (s .* g_derlink(family,mu)) .^2
 
+end
+
+# log-likelihood
+function ll(y::type_VecRealFloatInt,mu::type_VecRealFloatInt,sigma::Float64 ;type::String="NB")
+    sum(loggamma.(y .+ 1/sigma) .- loggamma.(y .+ 1)) - length(y)*loggamma(1/sigma) -
+    (1/sigma)* sum(log.(sigma .* mu .+ 1)) + transpose(y) * log.( sigma .* mu ./ (sigma .* mu .+ 1))
+end
+
+# score function for NB sigma
+function score_NB_sigma(y::type_VecRealFloatInt,mu::type_VecRealFloatInt,sigma::Float64;type::String="NB")
+    sum(digamma.(y .+ 1/sigma) .- digamma(1/sigma) .- log.(sigma .* mu .+ 1) .- sigma .* (y .- mu) ./ (sigma .* mu .+1))
+end
+
+# info function for NB sigma
+function info_NB_sigma(y::type_VecRealFloatInt,mu::type_VecRealFloatInt,sigma::Float64;type::String="NB")
+    (-1/sigma^2) * ( sum(trigamma.(y .+ 1/sigma)) - length(y)*trigamma(1/sigma)) -
+      sum((sigma .* mu.^2 .+ y) ./ ((sigma .* mu .+ 1) .^2))
 end
