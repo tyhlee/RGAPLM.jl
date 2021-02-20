@@ -435,6 +435,7 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
 
             # outer loop
             while (abs(full_loglkhd1 - full_loglkhd0) > epsilon) & (iter < 5)
+
                 # estimate mu
                 GAPLM_MLE = RGAPLM(y,X,T,
                     family="P", method= "Pan", link="log", verbose=false,
@@ -513,8 +514,8 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
                 # estimate sigma
                 tmp_sigma = copy(sigma)
                 robust_sigma_uniroot = (xx -> robust_sigma(y,mu,xx,c_sigma;type=robust_type_c,family=family))
-                roots = Roots.find_zeros(robust_sigma_uniroot,min_sigma,max_sigma,verose=true,xrtol=epsilon_sigma)
-                println("$roots")
+                roots = Roots.find_zero(robust_sigma_uniroot,min_sigma,max_sigma,verbose=true,xrtol=epsilon_sigma)
+                roots = Roots.find_zero(robust_sigma_uniroot,min_sigma,max_sigma,verbose=true,xrtol=epsilon_sigma)
                 if length(roots) == 0
                     # do not update
                     @warn("Roots not found for sigma (current value: $sigma)")

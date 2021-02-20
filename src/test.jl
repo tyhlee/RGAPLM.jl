@@ -281,6 +281,8 @@ T = T .- sum(T,dims=1)
 eta = vec(X * beta .+ sum(T,dims=2))
 mu = exp.(eta)
 y = rand.(Poisson.(mu))
+sigma=5.0
+y = rand.(NegativeBinomial.(1/sigma, 1 ./ (sigma .* mu .+ 1)))
 youtlier = copy(y)
 w = ones(length(y))
 span = repeat([0.15],size(T)[2])
@@ -288,7 +290,59 @@ degree = ones(Int,size(T)[2])
 c = 500.0
 max_it = 50
 family="NB"
-sigma=1.0
+
+y_var = var(y)
+y_mean  = mean(y)
+hat_eta = y_var/y_mean
+hat_theta = y_mean/hat_eta
+hat_sigma = 1/hat_theta
+
+sigma_estimator(1.0,y,mu,50.0)
+
+function sigma_estimator(sigma, y,mu,c)
+    loglkhd_sig1 = 0
+    loglkhd_sig0 = 1
+    epsilon_sigma = 1e-6
+    iter_sigma=0
+    max_it_sigma = 100
+    max_sigma = 1000
+
+    while (abs(loglkhd_sig1 - loglkhd_sig0) > epsilon_sigma) & (iter_sigma < max_it_sigma)
+        if isnothing(c)
+            sigma = abs(sigma - score_sigma(y,mu,sigma)/info_sigma(y,mu,sigma))
+        else
+            robust_sigma_uniroot = (xx -> robust_sigma(y,mu,xx,c;type="Tukey",family="NB"))
+            roots = Roots.find_zero(robust_sigma_uniroot,(0.01,10),Roots.Bisection(),maxevals=25,tol=1e-4)
+            #roots = Roots.find_zeros(robust_sigma_uniroot,1e-1,1e1,verbose=true)
+            # roots = Roots.fzero(robust_sigma_uniroot,1,order=2,verbose=true)
+            # roots = Roots.fzero(robust_sigma_uniroot,0.01,50,verbose=true)
+            # println("$roots")
+            if length(roots) == 0
+                # do not update
+                @warn("Roots not found for sigma (current value: $sigma)")
+            elseif length(roots) == 1
+                #  update sigma
+                sigma = roots[1]
+            else
+                # likely multipel roots close to zero
+                roots = Roots.find_zeros(robust_sigma_uniroot,0.1,max_sigma,verose=true)
+                if length(roots) == 0
+                    sigma = 0.1
+                else
+                    sigma = roots[1]
+                end
+            end
+        end
+        if sigma > max_sigma
+            sigma = max_sigma
+        end
+        loglkhd_sig0 = copy(loglkhd_sig1)
+        loglkhd_sig1 = ll(y,mu,sigma)
+        iter_sigma += 1
+        print("Iter: $iter_sigma, sigma: $sigma, ll: $loglkhd_sig1 \n")
+    end
+    sigma
+end
 
 model =  RGAPLM(y,X,T,
     family=family, method = "Pan", link="log", verbose=true,
@@ -315,3 +369,17 @@ plot!(t,model.mu)
 plot(beta,seriestype = :scatter,title="β")
 plot!(model.beta,seriestype = :scatter)
 plot((beta .- model.beta) ./ beta .* 100,seriestype = :scatter,title="β")
+
+
+### mme estimates
+sigma  = 1.0
+mu = 5.0
+n = 100000
+y = rand(NegativeBinomial(1/sigma, 1 / (sigma * mu + 1)),n)
+y_var = var(y)
+y_mean  = mean(y)
+hat_eta = y_var/y_mean
+hat_theta = y_mean/hat_eta
+hat_sigma = 1/hat_theta
+hat_theta * (hat_eta + 1) * hat_eta
+hat_eta * hat_theta
