@@ -1,15 +1,15 @@
 # type declarations
 type_VecFloat = Union{Float64,Vector{Float64}}
-type_VecInt = Vector{Int64}
+type_VecInt = Vector{Int}
 type_VecReal = Vector{Real}
 type_VecFloatInt = Union{type_VecInt,type_VecFloat}
 type_VecRealFloatInt = Union{type_VecInt,type_VecFloat,type_VecReal}
 type_VecReal = Vector{Real}
 type_VecOrMatFloat = VecOrMat{Float64}
-type_VecOrMatInt = VecOrMat{Int64}
+type_VecOrMatInt = VecOrMat{Int}
 type_VecOrMatFloatInt = Union{type_VecOrMatFloat,type_VecOrMatInt}
-type_FloatInt = Union{Int64,Float64}
-type_VecFloatIntFloatInt = Union{Int64,Float64,type_VecInt,type_VecFloat}
+type_FloatInt = Union{Int,Float64}
+type_VecFloatIntFloatInt = Union{Int,Float64,type_VecInt,type_VecFloat}
 type_NTVecOrMatFloatInt = Union{Nothing,type_VecOrMatFloat,type_VecOrMatInt}
 
 function tricube(u::type_VecFloatInt)
@@ -78,7 +78,7 @@ dropcol(M::AbstractMatrix,ind) = M[:,deleteat!(collect(axes(M,2)),ind)]
 function scaletau2(x::type_VecFloatInt;c1::type_VecFloat=4.5,c2::type_VecFloat=3.0,consistency=true,
     sigma::type_VecFloat=1.0) where T<:Float64
 
-    n::Int64 = length(x)
+    n::Int = length(x)
     medx::Float64 = median(x)
     xx = abs.(x .- medx)
     sigma = median(xx)
@@ -112,7 +112,7 @@ end
 
 # determine the number of samples and the number of columns in a matrix
 # returns 0 num of columns for a vector
-function size_VecOrMat(x::Union{Nothing,VecOrMat{Float64},VecOrMat{Int64}})
+function size_VecOrMat(x::Union{Nothing,VecOrMat{Float64},VecOrMat{Int}})
     if typeof(x)== Nothing
         return 0,0
     elseif typeof(x) == Array{typeof(x[1]),1}
@@ -123,12 +123,12 @@ function size_VecOrMat(x::Union{Nothing,VecOrMat{Float64},VecOrMat{Int64}})
 end
 
 # neg binom helper using mu and sigma: cdf
-function nb2_cdf_mu_sigma(mu::T,sigma::T,y::Union{Int,Vector{Int},Float64,Vector{Float64}}) where {T <: Union{Int64, Float64,Vector{Float64},Vector{Int64}}}
+function nb2_cdf_mu_sigma(mu::T,sigma::T,y::Union{Int,Vector{Int},Float64,Vector{Float64}}) where {T <: Union{Int, Float64,Vector{Float64},Vector{Int}}}
         StatsFuns.nbinomcdf.(1 ./ sigma, 1 ./ (sigma .* mu .+ 1),y)
 end
 
 # neg binom helper using mu and sigma: pmf
-function nb2_pdf_mu_sigma(mu::T,sigma::T,y::Union{Int,Vector{Int},Float64,Vector{Float64}}) where {T <: Union{Int64, Float64,Vector{Float64},Vector{Int64}}}
+function nb2_pdf_mu_sigma(mu::T,sigma::T,y::Union{Int,Vector{Int},Float64,Vector{Float64}}) where {T <: Union{Int, Float64,Vector{Float64},Vector{Int}}}
         StatsFuns.nbinompdf.(1 ./ sigma, 1 ./ (sigma .* mu .+ 1),y)
 end
 
@@ -178,7 +178,7 @@ function g_weight(family::String,mu::type_VecFloat;link::String="log")
 end
 
 # GLM variance functions
-function g_var(family::String,mu::type_VecFloatInt,sigma::Union{Nothing,Int64,Float64}=nothing)
+function g_var(family::String,mu::type_VecFloatInt,sigma::Union{Nothing,Int,Float64}=nothing)
     if family == "P"
         return mu
     elseif family =="NB"
@@ -190,7 +190,7 @@ end
 
 # compute GLM robust Z (adjusted response variable) and W (weights)
 function g_ZW(family::String,robust_type::String,y::type_VecFloatInt,mu::type_VecFloatInt,
-    s::type_VecFloatInt,c::type_FloatInt,sigma::Union{Nothing,Float64,Int64})
+    s::type_VecFloatInt,c::type_FloatInt,sigma::Union{Nothing,Float64,Int})
 
     E1 = similar(y)
     E2 = similar(y)
@@ -198,8 +198,8 @@ function g_ZW(family::String,robust_type::String,y::type_VecFloatInt,mu::type_Ve
     nb_r = (typeof(sigma)==Nothing, nothing, 1/sigma)
     nb_p = similar(y)
 
-    j1::Vector{Int64} = max.(ceil.(Int,mu .- c .* s),0)
-    j2::Vector{Int64} = floor.(Int,mu .+ c .* s)
+    j1::Vector{Int} = max.(ceil.(Int,mu .- c .* s),0)
+    j2::Vector{Int} = floor.(Int,mu .+ c .* s)
     zero_index = j1 .> j2
     # make this into floor
     j1 .-= 1
