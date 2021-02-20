@@ -449,7 +449,6 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
 
                 beta = copy(GAPLM_MLE.beta)
                 mu = copy(GAPLM_MLE.mu)
-                eta = g_link(family,mu)
                 mu[mu .> maxmu] .= maxmu
                 mu[mu .< minmu] .= minmu
 
