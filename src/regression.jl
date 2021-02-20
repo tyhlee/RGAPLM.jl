@@ -466,7 +466,7 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
                         sigma = max_sigma
                     end
                     loglkhd_sig0 = copy(loglkhd_sig1)
-                    loglkhd_sig1 = ll(y,mu,sigma)
+                    loglkhd_sig1 = ll(y,mu,float(sigma))
                     iter_sigma += 1
                 end
 
@@ -483,17 +483,17 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
         end
 
         if verbose
-            @show("Parameter initialization completed")
+            print("Parameter initialization completed.\n
+            Initial parameter values are:")
+            @show sigma
+            @show beta
+            @show mu[1:5]
         end
 
         # Start estimation
         if method == "Pan"
 
             # initialization
-            @show sigma
-            @show beta
-            @show mu[1:5]
-            mu = g_invlink(family,eta)
             s = sqrt.(g_var(family,mu,sigma))
             z, w = g_ZW(family,robust_type,y,mu,s,c,sigma)
 
@@ -509,34 +509,27 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
                 println("Starting the loop . . .")
             end
             # start the loop
-            sigma = 1.0
             while (crit > epsilon) & (iter < max_it)
                 # estimate sigma
                 tmp_sigma = copy(sigma)
                 robust_sigma_uniroot = (xx -> robust_sigma(y,mu,xx,c_sigma;type=robust_type_c,family=family))
                 roots = Roots.find_zero(robust_sigma_uniroot,(min_sigma,max_sigma),Roots.Bisection(),
-                verbose=verbose,tol=epsilon_sigma,maxevals=max_it_sigma)
+                verbose=false,tol=epsilon_sigma,maxevals=max_it_sigma)
                 #roots = Roots.find_zero(robust_sigma_uniroot,min_sigma,max_sigma,verbose=verbose,xrtol=epsilon_sigma)
                 if length(roots) == 0
                     # do not update
                     @warn("Roots not found for sigma (current value: $sigma)")
                 elseif length(roots) == 1
                     #  update sigma
-                    sigma = roots[1]
+                    sigma = float(roots[1])
                 else
                     # likely multipel roots close to zero
                     roots = Roots.find_zeros(robust_sigma_uniroot,0.1,max_sigma,verose=true)
                     if length(roots) == 0
                         sigma = 0.1
                     else
-                        sigma = roots[1]
+                        sigma = float(roots[1])
                     end
-                end
-
-                if verbose
-                    println("$roots")
-                    println("$iter")
-                    println("$sigma")
                 end
 
                 # update robust components involving sigma
@@ -579,11 +572,8 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
                 iter += 1
 
                 if verbose
-                    @show iter
-                    @show crit
-                    @show beta
-                    @show sigma
                     @printf("Iter %.0f; Crit %.2E; beta0: %.2E; beta1:  %.2E; sigma: %.2E \n",iter,crit,beta[1],beta[2],sigma)
+                    @show beta
                 end
             end
             # end of estimation
