@@ -463,7 +463,7 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
                 # Newton Raphson to calc
                 while (abs(loglkhd_sig1 - loglkhd_sig0) > epsilon_sigma) & (iter_sigma < maix_it_sigma)
                     loglkhd_sig0 = ll(y,mu,sigma)
-                    sigma = abs(sigma - score_NB_sigma(y,mu,sigma)/info_NB_sigma(y,mu,sigma))
+                    sigma = abs(sigma - score_sigma(y,mu,sigma)/info_sigma(y,mu,sigma))
                     if sigma > max_sigma
                         sigma = max_sigma
                     end
@@ -485,6 +485,8 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
         if verbose
             println('Parameter initialization completed')
         end
+
+
     # if(!missing(initial.beta)) {beta = initial.beta}
     print(c(sig,beta))}
 

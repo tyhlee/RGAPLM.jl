@@ -123,12 +123,12 @@ function size_VecOrMat(x::Union{Nothing,VecOrMat{Float64},VecOrMat{Int64}})
 end
 
 # neg binom helper using mu and sigma: cdf
-function nb2_cdf_mu_sigma(mu::T,sigma::T,y::T) where {T <: Union{Int64, Float64,Vector{Float64},Vector{Int64}}}
+function nb2_cdf_mu_sigma(mu::T,sigma::T,y::Union{Int,Vector{Int},Float64,Vector{Float64}}) where {T <: Union{Int64, Float64,Vector{Float64},Vector{Int64}}}
         StatsFuns.nbinomcdf.(1 ./ sigma, 1 ./ (sigma .* mu .+ 1),y)
 end
 
 # neg binom helper using mu and sigma: pmf
-function nb2_pdf_mu_sigma(mu::T,sigma::T,y::T) where {T <: Union{Int64, Float64,Vector{Float64},Vector{Int64}}}
+function nb2_pdf_mu_sigma(mu::T,sigma::T,y::Union{Int,Vector{Int},Float64,Vector{Float64}}) where {T <: Union{Int64, Float64,Vector{Float64},Vector{Int64}}}
         StatsFuns.nbinompdf.(1 ./ sigma, 1 ./ (sigma .* mu .+ 1),y)
 end
 
@@ -287,12 +287,45 @@ function ll(y::type_VecRealFloatInt,mu::type_VecRealFloatInt,sigma::Float64 ;typ
 end
 
 # score function for NB sigma
-function score_NB_sigma(y::type_VecRealFloatInt,mu::type_VecRealFloatInt,sigma::Float64;type::String="NB")
+function score_sigma(y::type_VecRealFloatInt,mu::type_VecRealFloatInt,sigma::Float64;type::String="NB")
     sum(digamma.(y .+ 1/sigma) .- digamma(1/sigma) .- log.(sigma .* mu .+ 1) .- sigma .* (y .- mu) ./ (sigma .* mu .+1))
 end
 
 # info function for NB sigma
-function info_NB_sigma(y::type_VecRealFloatInt,mu::type_VecRealFloatInt,sigma::Float64;type::String="NB")
+function info_sigma(y::type_VecRealFloatInt,mu::type_VecRealFloatInt,sigma::Float64;family::String="NB")
     (-1/sigma^2) * ( sum(trigamma.(y .+ 1/sigma)) - length(y)*trigamma(1/sigma)) -
       sum((sigma .* mu.^2 .+ y) ./ ((sigma .* mu .+ 1) .^2))
+end
+
+function psi_sigma_MLE(r::type_VecRealFloatInt,mu::type_VecRealFloatInt,sigma::Float)
+    digamma.(r .* sqrt.(mu .* (sigma .* mu .+ 1)) .+ mu .+ 1/sigma ) .-
+    sigma .* r .* sqrt.(mu ./ (sigma .* mu .+ 1)) .-
+    digamma(1/sigma) .- log.(sigma .* mu .+ 1)
+end
+
+function robust_sigma(y,mu,sigma,c;type="Tukey",family="NB")
+    if (family == "NB") & (type =="Tukey")
+        r = (y .- mu) ./ sqrt.(g_var(family,mu,sigma))
+        wi = psi_weight(r,c,type)
+        return sum(wi .* psi_sigma_MLE(r,mu,sigma) .-
+        [robust_sigma_correction(x,sigma,c) for x in mu])
+    else
+        error("$Type or $family is not supported")
+    end
+end
+
+function robust_sigma_correction(mui,sigma,c)
+    sqrtVmui = sqrt(mui * (sigma * mui + 1))
+    invsig = 1/sigma
+    j1 = max(ceil(Int,mui-c*sqrtVmui),0)
+    j2 = floor(Int,mui+c*sqrtVmui)
+
+    if j1>j2
+        return 0
+    else
+        j12 = Int.(j1:j2)
+        return sum((((j12 .- mui) ./ (c*sqrtVmui)).^2 .- 1) .^2 .*
+            (digamma.( j12 .+ invsig) .- digamma(invsig) .- log(mui/invsig+1) .- (j12 .- mui) ./ (mui+invsig)) .*
+            nb2_pdf_mu_sigma(mui,sigma,j12))
+    end
 end
