@@ -271,7 +271,7 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
     epsilon_sigma::type_FloatInt=1e-4, max_it_sigma::Int = 10,
     epsilon_eta::type_FloatInt=1e-4, max_it_eta::Int = 25,
     initial_beta::Bool = false, maxmu::type_FloatInt=1e5,
-    minmu::type_FloatInt=1e-10,min_sigma::type_FloatInt = 1e-5,max_sigma::type_FloatInt = 1e5)
+    minmu::type_FloatInt=1e-10,min_sigma::type_FloatInt = 0.1,max_sigma::type_FloatInt = 10)
  # where {U <: type_FloatInt, N <: Int, St <: String}
 
     # initialization
@@ -514,8 +514,9 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
                 # estimate sigma
                 tmp_sigma = copy(sigma)
                 robust_sigma_uniroot = (xx -> robust_sigma(y,mu,xx,c_sigma;type=robust_type_c,family=family))
-                roots = Roots.find_zero(robust_sigma_uniroot,min_sigma,max_sigma,verbose=true,xrtol=epsilon_sigma)
-                roots = Roots.find_zero(robust_sigma_uniroot,min_sigma,max_sigma,verbose=true,xrtol=epsilon_sigma)
+                roots = Roots.find_zero(robust_sigma_uniroot,(min_sigma,max_sigma),Roots.Bisection(),
+                verbose=verbose,tol=epsilon_sigma,maxevals=max_it_sigma)
+                #roots = Roots.find_zero(robust_sigma_uniroot,min_sigma,max_sigma,verbose=verbose,xrtol=epsilon_sigma)
                 if length(roots) == 0
                     # do not update
                     @warn("Roots not found for sigma (current value: $sigma)")
