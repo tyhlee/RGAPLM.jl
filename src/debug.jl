@@ -24,28 +24,43 @@ youtlier = copy(y)
 w = ones(length(y))
 span = repeat([0.15],size(T)[2])
 degree = ones(Int,size(T)[2])
-c = 10000.0
+c = 100.0
 max_it = 50
-family="P"
+family="NB"
 sigma=1.0
 
-beta = zeros(2)
-# use the median for the initial estimate
-beta[1] = g_link(family,median(y),link="log")
-par = vec(X * beta)
-eta = copy(par)
-mu = g_invlink(family,eta)
-s = sqrt.(g_var(family,mu,sigma))
-z, w = g_ZW(family,"Tukey",y,mu,s,c,sigma)
+tmp = RGAPLM(y,X,T,
+    family=family, method = "Pan", link="log", verbose=true,
+    span=span,loess_degree=degree,
+    sigma= 1.0,
+    beta=nothing,
+    c=c,
+    c_X=c,
+    c_T=c,
+    c_sigma=c,
+    epsilon=1e-4,max_it=10,
+    epsilon_T = 1e-4, max_it_T = 5,
+    epsilon_X = 1e-4, max_it_X = 5,
+    epsilon_RAM = 1e-4, max_it_RAM = 5,
+    epsilon_sigma=1e-4,
+    epsilon_eta=1e-4, max_it_eta = 5,
+    initial_beta = false, maxmu=1e5,
+    minmu=1e-10,min_sigma = 1e-3,max_sigma = 1e3)
+
 
 Juno.@enter RGAPLM(y,X,T,
-    family ="P", method = "Pan",
+    family=family, method = "Pan", link="log", verbose=true,
     span=span,loess_degree=degree,
-    beta=nothing,
     sigma= 1.0,
-    c=c, robust_type ="none",
-    c_X=c, robust_type_X ="none",
-    c_T=c, robust_type_T ="none",
-    epsilon=1e-6, max_it = 50,
-    epsilon_T = 1e-6, max_it_T = 50,
-    epsilon_X = 1e-6, max_it_X = 50)
+    beta=nothing,
+    c=c,
+    c_X=c,
+    c_T=c,
+    c_sigma=c,
+    epsilon_T = 1e-6, max_it_T = 5,
+    epsilon_X = 1e-6, max_it_X = 5,
+    epsilon_RAM = 1e-6, max_it_RAM = 10,
+    epsilon_sigma=1e-6,
+    epsilon_eta=1e-4, max_it_eta = 25,
+    initial_beta = false, maxmu=1e5,
+    minmu=1e-10,min_sigma = 1e-3,max_sigma = 1e3)

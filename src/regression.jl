@@ -434,7 +434,7 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
             iter = 0
 
             # outer loop
-            while (abs(full_loglkhd1 - full_loglkhd0) > epsilon) & (iter < 15)
+            while (abs(full_loglkhd1 - full_loglkhd0) > epsilon) & (iter < 5)
                 # estimate mu
                 GAPLM_MLE = RGAPLM(y,X,T,
                     family="P", method= "Pan", link="log", verbose=false,
@@ -444,7 +444,7 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
                     c=500, robust_type ="Huber",
                     c_X=500, robust_type_X ="Huber",
                     c_T=500, robust_type_T ="Huber",
-                    epsilon=epsilon, max_it = 10)
+                    epsilon=epsilon, max_it = 5)
 
 
                 beta = copy(GAPLM_MLE.beta)
@@ -506,15 +506,16 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
 
 
             if verbose
-                @show("Starting the loop . . .")
+                println("Starting the loop . . .")
             end
             # start the loop
+            sigma = 1.0
             while (crit > epsilon) & (iter < max_it)
                 # estimate sigma
                 tmp_sigma = copy(sigma)
                 robust_sigma_uniroot = (xx -> robust_sigma(y,mu,xx,c_sigma;type=robust_type_c,family=family))
                 roots = Roots.find_zeros(robust_sigma_uniroot,min_sigma,max_sigma,verose=true,xrtol=epsilon_sigma)
-
+                println("$roots")
                 if length(roots) == 0
                     # do not update
                     @warn("Roots not found for sigma (current value: $sigma)")
@@ -532,8 +533,9 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
                 end
 
                 if verbose
-                    @show iter
-                    @show sigma
+                    println("$roots")
+                    println("$iter")
+                    println("$sigma")
                 end
 
                 # update robust components involving sigma
@@ -588,7 +590,7 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
                 @printf("Pan NB fitted with %.0f iterations and converged with %.2E",iter,crit)
             end
 
-            return (eta=eta,mu=mu,z=z,w=w,beta=beta,S=S,s=s,convergence=Dict(:iter => iter, :crit => crit))
+            return (eta=eta,mu=mu,z=z,w=w,beta=beta,sigma=sigma,S=S,s=s,convergence=Dict(:iter => iter, :crit => crit))
 
         elseif method =="Lee"
 

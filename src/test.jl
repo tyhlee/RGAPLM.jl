@@ -290,7 +290,7 @@ max_it = 50
 family="NB"
 sigma=1.0
 
-Pan_NB = RGAPLM(y,X,T,
+model =  RGAPLM(y,X,T,
     family=family, method = "Pan", link="log", verbose=true,
     span=span,loess_degree=degree,
     sigma= 1.0,
@@ -299,10 +299,19 @@ Pan_NB = RGAPLM(y,X,T,
     c_X=c,
     c_T=c,
     c_sigma=c,
+    epsilon=1e-4,max_it=5,
     epsilon_T = 1e-6, max_it_T = 5,
     epsilon_X = 1e-6, max_it_X = 5,
-    epsilon_RAM = 1e-6, max_it_RAM = 10,
+    epsilon_RAM = 1e-6, max_it_RAM = 5,
     epsilon_sigma=1e-6,
-    epsilon_eta=1e-4, max_it_eta = 25,
+    epsilon_eta=1e-4, max_it_eta = 5,
     initial_beta = false, maxmu=1e5,
-    minmu=1e-10,min_sigma = 1e-5,max_sigma = 1e5)
+    minmu=1e-10,min_sigma = 1e-3,max_sigma = 1e3)
+
+plot(t,y)
+plot!(t,model.mu)
+plot(t,mu)
+plot!(t,model.mu)
+plot(beta,seriestype = :scatter,title="β")
+plot!(model.beta,seriestype = :scatter)
+plot((beta .- model.beta) ./ beta .* 100,seriestype = :scatter,title="β")
