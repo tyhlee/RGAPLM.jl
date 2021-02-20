@@ -270,34 +270,15 @@ plot!(model.beta,seriestype = :scatter)
 png("figs/Poisson_Lee_beta")
 
 
-# test RGAPLM - NB Pan
-t = collect([1.0:1.0:365;])
-tsq = t.^2
-esp = rand(length(t))
-X = [ones(length(t)) t]
-beta = [1, 0.001]
-T = [sin.((2*7*pi).*t./365) cos.((2*7*pi).*t./365)]
-T = T .- sum(T,dims=1)
-eta = vec(X * beta .+ sum(T,dims=2))
-mu = exp.(eta)
-y = rand.(Poisson.(mu))
-sigma=5.0
-y = rand.(NegativeBinomial.(1/sigma, 1 ./ (sigma .* mu .+ 1)))
-youtlier = copy(y)
-w = ones(length(y))
-span = repeat([0.15],size(T)[2])
-degree = ones(Int,size(T)[2])
-c = 500.0
-max_it = 50
-family="NB"
 
+# test sigma estimator
 y_var = var(y)
 y_mean  = mean(y)
 hat_eta = y_var/y_mean
 hat_theta = y_mean/hat_eta
 hat_sigma = 1/hat_theta
 
-sigma_estimator(1.0,y,mu,50.0)
+sigma_estimator(1.0,y,mu,10.0)
 
 function sigma_estimator(sigma, y,mu,c)
     loglkhd_sig1 = 0
@@ -313,6 +294,7 @@ function sigma_estimator(sigma, y,mu,c)
         else
             robust_sigma_uniroot = (xx -> robust_sigma(y,mu,xx,c;type="Tukey",family="NB"))
             roots = Roots.find_zero(robust_sigma_uniroot,(0.01,10),Roots.Bisection(),maxevals=25,tol=1e-4)
+            # roots = Roots.find_zeros(robust_sigma_uniroot,0.01,10,maxevals=25,tol=1e-4)
             #roots = Roots.find_zeros(robust_sigma_uniroot,1e-1,1e1,verbose=true)
             # roots = Roots.fzero(robust_sigma_uniroot,1,order=2,verbose=true)
             # roots = Roots.fzero(robust_sigma_uniroot,0.01,50,verbose=true)
@@ -344,6 +326,31 @@ function sigma_estimator(sigma, y,mu,c)
     sigma
 end
 
+# test RGAPLM - NB Pan
+t = collect([1.0:1.0:365;])
+tsq = t.^2
+esp = rand(length(t))
+X = [ones(length(t)) t]
+beta = [1, 0.001]
+T = [sin.((2*7*pi).*t./365) cos.((2*7*pi).*t./365)]
+T = T .- sum(T,dims=1)
+eta = vec(X * beta .+ sum(T,dims=2))
+mu = exp.(eta)
+y = rand.(Poisson.(mu))
+youtlier = copy(y)
+w = ones(length(y))
+span = repeat([0.25],size(T)[2])
+degree = ones(Int,size(T)[2])
+c = 30.0 # don't set it too large; otherwise computation is too slow
+max_it = 50
+family="NB"
+sigma=0.5
+y = float.(rand.(NegativeBinomial.(1/sigma, 1 ./ (sigma .* mu .+ 1))))
+
+# inject some outliers
+y[100:103] = ceil.(Int,y[100:103].*2.5)
+c=4.5
+
 model =  RGAPLM(y,X,T,
     family=family, method = "Pan", link="log", verbose=true,
     span=span,loess_degree=degree,
@@ -352,15 +359,15 @@ model =  RGAPLM(y,X,T,
     c=c,
     c_X=c,
     c_T=c,
-    c_sigma=c,
-    epsilon=1e-4,max_it=5,
-    epsilon_T = 1e-6, max_it_T = 5,
-    epsilon_X = 1e-6, max_it_X = 5,
+    c_sigma=c*2,
+    epsilon=1e-6,max_it=10,
+    epsilon_T = 1e-6, max_it_T = 25,
+    epsilon_X = 1e-6, max_it_X = 10,
     epsilon_RAM = 1e-6, max_it_RAM = 5,
-    epsilon_sigma=1e-6,
-    epsilon_eta=1e-4, max_it_eta = 5,
+    epsilon_sigma=1e-5, max_it_sigma=10,
+    epsilon_eta=1e-6, max_it_eta = 10,
     initial_beta = false, maxmu=1e5,
-    minmu=1e-10,min_sigma = 1e-3,max_sigma = 1e3)
+    minmu=1e-5,min_sigma = 0.1,max_sigma = 15.0)
 
 plot(t,y)
 plot!(t,model.mu)
@@ -369,17 +376,4 @@ plot!(t,model.mu)
 plot(beta,seriestype = :scatter,title="β")
 plot!(model.beta,seriestype = :scatter)
 plot((beta .- model.beta) ./ beta .* 100,seriestype = :scatter,title="β")
-
-
-### mme estimates
-sigma  = 1.0
-mu = 5.0
-n = 100000
-y = rand(NegativeBinomial(1/sigma, 1 / (sigma * mu + 1)),n)
-y_var = var(y)
-y_mean  = mean(y)
-hat_eta = y_var/y_mean
-hat_theta = y_mean/hat_eta
-hat_sigma = 1/hat_theta
-hat_theta * (hat_eta + 1) * hat_eta
-hat_eta * hat_theta
+print((sigma .- model.sigma) ./ sigma .* 100)
