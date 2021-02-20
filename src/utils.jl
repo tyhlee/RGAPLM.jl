@@ -65,7 +65,9 @@ function compute_crit(X::type_VecOrMatFloatInt,XX::type_VecOrMatFloatInt,type="n
     if type=="norm2"
         return norm(sum(X .- XX,dims=2))
     elseif type=="norm2_change"
-        return norm(X-XX)/norm(XX)
+        return norm(X .- XX)/norm(XX)
+    elseif type =="norm_inf"
+        return norm(X .- XX,Inf)
     else
         error("Compute crit $type is not supported")
     end
@@ -297,15 +299,18 @@ function info_sigma(y::type_VecRealFloatInt,mu::type_VecRealFloatInt,sigma::Floa
       sum((sigma .* mu.^2 .+ y) ./ ((sigma .* mu .+ 1) .^2))
 end
 
-function psi_sigma_MLE(r::type_VecRealFloatInt,mu::type_VecRealFloatInt,sigma::Float)
+function psi_sigma_MLE(r::type_VecRealFloatInt,mu::type_VecRealFloatInt,sigma::Float64)
     digamma.(r .* sqrt.(mu .* (sigma .* mu .+ 1)) .+ mu .+ 1/sigma ) .-
     sigma .* r .* sqrt.(mu ./ (sigma .* mu .+ 1)) .-
     digamma(1/sigma) .- log.(sigma .* mu .+ 1)
 end
 
 function robust_sigma(y,mu,sigma,c;type="Tukey",family="NB")
+    if sigma <=0
+        return Inf
+    end
     if (family == "NB") & (type =="Tukey")
-        r = (y .- mu) ./ sqrt.(g_var(family,mu,sigma))
+        r = (y .- mu) ./ sqrt.(g_var(family,mu,float(sigma)))
         wi = psi_weight(r,c,type)
         return sum(wi .* psi_sigma_MLE(r,mu,sigma) .-
         [robust_sigma_correction(x,sigma,c) for x in mu])

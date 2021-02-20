@@ -2,6 +2,7 @@ using BenchmarkTools
 using LinearAlgebra
 using RDatasets
 using Distributions, StatsFuns, SpecialFunctions
+using Roots
 using Debugger
 using Plots
 using Printf
@@ -31,7 +32,7 @@ function loess(y::type_VecFloatInt,
     xi::type_VecFloatInt,
     w::type_VecFloatInt=ones(length(y));
     span::Float64=0.75,
-    degree::Int64=2)
+    degree::Int=2)
 
     # results
     results = similar(y)
@@ -83,7 +84,7 @@ function rloess(y::type_VecFloatInt,
     results = similar(y)
     wr = similar(y)
     wtmp_x = similar(y)
-    iter::Int64 =0
+    iter::Int =0
     crit::Float64=epsilon*10
 
     # compute the design matrix
@@ -127,7 +128,7 @@ function AM(y::type_VecFloatInt,X::type_VecOrMatFloatInt,
     n,k = size_VecOrMat(X)
 
     crit::Float64 = 10*epsilon
-    iter::Int64 = 0
+    iter::Int = 0
     S = zeros(Float64,n,k)
 
     # fit
@@ -157,7 +158,7 @@ function robust_intercept(y::type_VecFloatInt,mu::type_VecFloatInt=median(y),w::
     type::String="Huber",c::type_VecFloatInt=1.345,
     epsilon::type_VecFloatInt=1e-6,max_it::N=10) where{T<: Float64, N <:Int}
 
-    iter::Int64 = 0
+    iter::Int = 0
     crit::type_FloatInt = epsilon*10
     w = w ./ sigma
     wsq = w.^2
@@ -182,7 +183,7 @@ function RAM(y::type_VecFloatInt,X::type_VecOrMatFloatInt,w::type_VecFloatInt=on
     type::String="Huber",c::type_FloatInt = 1.345,
     sigma::type_FloatInt = 0.0, epsilon::type_FloatInt=1e-6,max_it::N=10, alpha::type_FloatInt = median(y),
     epsilon_global::type_FloatInt = 1e-6, max_it_global::N = 5,
-    update_intercept::Bool = true) where {U <: Float64, N<:Int64}
+    update_intercept::Bool = true) where {U <: Float64, N<:Int}
 
     # initialization
     # if there is a vector of ones (intercept), exclude it
@@ -192,7 +193,7 @@ function RAM(y::type_VecFloatInt,X::type_VecOrMatFloatInt,w::type_VecFloatInt=on
         X = X[:,tmp_index]
     end
 
-    n::Int64,k::Int64 = size_VecOrMat(X)
+    n::Int,k::Int = size_VecOrMat(X)
 
     S = zeros(Float64,n,k)
 
@@ -205,7 +206,7 @@ function RAM(y::type_VecFloatInt,X::type_VecOrMatFloatInt,w::type_VecFloatInt=on
     end
 
     global_crit::Float64 = 10*epsilon_global
-    global_iter::Int64 = 0
+    global_iter::Int = 0
 
     # fit
     while (global_crit > epsilon_global) & (global_iter < max_it_global)
@@ -258,28 +259,30 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
     family::St ="NB", method::St = "Pan", link::St="log", verbose=true,
     span::type_VecFloatInt,loess_degree::Vector{N},
     sigma::type_FloatInt= 1.0,
-    beta::Union{Nothing,Float64,Int64,Vector{Float64},Vector{Int64}}=nothing,
+    beta::Union{Nothing,Float64,Int,Vector{Float64},Vector{Int}}=nothing,
     c::U=1.345, robust_type::St ="Tukey",
     c_X::U=1.345, robust_type_X::St ="Tukey",
     c_T::U=1.345, robust_type_T::St ="Tukey",
+    c_sigma::U=1.345, robust_type_c::St = "Tukey",
     epsilon::U=1e-6, max_it::N = 100,
     epsilon_T::U = 1e-6, max_it_T::N = 5,
     epsilon_X::U = 1e-6, max_it_X::N = 5,
     epsilon_RAM::U = 1e-6, max_it_RAM::N = 10,
-    epsilon_sigma::U=1e-4, maix_it_sigma = 10,
+    epsilon_sigma::U=1e-4, max_it_sigma::N = 10,
+    epsilon_eta::U=1e-4, max_it_eta::N = 25,
     initial_beta::Bool = false, maxmu::U=1e5,
-    minmu::U=1e-10,max_sigma::U = 1e3} where {U <: type_FloatInt, N <: Int, St <: String}
+    minmu::U=1e-10,min_sigma = 1e-5,max_sigma::U = 1e5) where {U <: type_FloatInt, N <: Int, St <: String}
 
     # initialization
-    n::Int64 = length(y)
-    _, p::Int64 = size_VecOrMat(X)
-    _, q::Int64 = size_VecOrMat(T)
+    n::Int = length(y)
+    _, p::Int = size_VecOrMat(X)
+    _, q::Int = size_VecOrMat(T)
     crit::Float64 = copy(epsilon)
     crit_T::Float64 = copy(epsilon)
     crit_X::Float64 = copy(epsilon)
-    iter::Int64 = 0
-    iter_X::Int64 = 0
-    iter_T::Int64 = 0
+    iter::Int = 0
+    iter_X::Int = 0
+    iter_T::Int = 0
 
     if p ==0 & q == 0
         error("No data is provided.")
@@ -408,7 +411,7 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
                 end
             end
             # end of Pan Poisson
-            if verbose==1
+            if verbose
                 @printf("Lee Poisson fitted with %.0f iterations and converged with %.2E",iter,crit)
             end
 
@@ -447,7 +450,7 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
                     c=100, robust_type ="Tukey",
                     c_X=100, robust_type_X ="Tukey",
                     c_T=100, robust_type_T ="Tukey",
-                    epsilon=epsilon, max_it = 50}
+                    epsilon=epsilon, max_it = 50)
                 beta = GAPLM_init.beta
                 mu = GAPLM_init.mu
                 eta = g_link(mu)
@@ -477,24 +480,96 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
             end # if initial values are provided
         #TODO: Check whether I need this beta[1] = beta[1] + nonpar$alpha
         else  # use the supplied initial values;
-            mu = g_invlink(familly,X * beta;link=link)
+            mu = g_invlink(family,X * beta;link=link)
             mu[mu .> maxmu] .= maxmu
             mu[mu .< minmu] .= minmu
         end
 
         if verbose
-            println('Parameter initialization completed')
+            println("Parameter initialization completed")
         end
 
-
-    # if(!missing(initial.beta)) {beta = initial.beta}
-    print(c(sig,beta))}
-
-
-
-
-
+        # Start estimation
         if method == "Pan"
+
+            # initialization
+            par = vec(X * beta)
+            eta = copy(par)
+            mu = g_invlink(family,eta)
+            s = sqrt.(g_var(family,mu,sigma))
+            z, w = g_ZW(family,robust_type,y,mu,s,c,sigma)
+            par_res = vec(z .- par)
+
+            crit =  epsilon + 1
+            iter = 0
+            tmp_sigma = similar(sigma)
+            tmp_eta = similar(eta)
+            tmp_beta = similar(beta)
+            tmp_S = similar(S)
+
+            # start the loop for beta
+            while (crit > epsilon) & (iter < max_it)
+                # estimate sigma
+                tmp_sigma = copy(sigma)
+                robust_sigma_uniroot = (xx -> robust_sigma(y,mu,xx,c_sigma;type=type,family=family))
+                roots = Roots.find_zeros(robust_sigma_uniroot,min_sigma,max_sigma,verose=true,xrtol=epsilon_sigma)
+
+                if length(roots) == 0
+                    # do not update
+                    @warn("Roots not found for sigma (current value: $sigma)")
+                elseif length(roots) == 1
+                    #  update sigma
+                    sigma = roots[1]
+                else
+                    # likely multipel roots close to zero
+                    roots = Roots.find_zeros(robust_sigma_uniroot,0.1,max_sigma,verose=true)
+                    if length(roots) == 0
+                        sigma = 0.1
+                    else
+                        sigma = roots[1]
+                    end
+                end
+
+                # update robust components involving sigma
+                s = sqrt.(g_var(family,mu,sigma))
+                z, w = g_ZW(family,robust_type,y,mu,s,c,sigma)
+                par_res = vec(z .- par)
+
+                # estimate eta (beta + f(T))
+                tmp_eta = copy(eta)
+                iter_eta = 0
+                crit_eta = epsilon_eta + 1.0
+
+                while (crit_eta > epsilon_eta) & (iter_eta < max_it_eta)
+                    tmp_S = copy(S)
+                    S = AM(par_res,T,w,span=span,loess_degree=loess_degree,epsilon=epsilon_T,max_it=max_it_T,y_mean=beta[1]).S
+
+                    nonpar = vec(sum(S,dims=2))
+                    # estimate beta
+                    tmp_beta = copy(beta)
+                    beta = wls(vec(z .- nonpar),X,w)
+                    par = X * beta
+
+                    # update eta, mu, Z, W
+                    eta = vec(par .+ nonpar)
+                    mu = g_invlink(family,eta)
+                    s = sqrt.(g_var(family,mu,sigma))
+                    z,w = g_ZW(family,robust_type,y,mu,s,c,sigma)
+                    par_res = vec(z .- par)
+                    crit_eta = (compute_crit(S,tmp_S,"norm2_change") + compute_crit(beta,tmp_beta,"norm2_change"))/2
+                    iter_eta += 1
+                end
+
+                # compute sigma crit and eta crit
+                crit = (abs(tmp_sigma - sigma) + compute_crit(eta,tmp_eta,"norm_inf"))/2
+                iter += 1
+            end
+            # end of estimation
+            if verbose
+                @printf("Pan Poisson fitted with %.0f iterations and converged with %.2E",iter,crit)
+            end
+
+            return (eta=eta,mu=mu,z=z,w=w,beta=beta,S=S,s=s,convergence=Dict(:iter => iter, :crit => crit))
 
         elseif method =="Lee"
 
