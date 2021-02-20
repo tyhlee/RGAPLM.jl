@@ -161,15 +161,6 @@ function g_derlink(family::String,mu::type_VecFloatInt;link::String="log")
     end
 end
 
-# GLM derivative of inv link function
-function g_derlink(family::String,eta::type_VecFloatInt;link::String="log")
-    if link == "log"
-        return exp.(eta)
-    else
-        erro("$link is not supported.")
-    end
-end
-
 # GLM weight functions
 function g_weight(family::String,mu::type_VecFloatInt;link::String="log")
     if link == "log"
@@ -192,7 +183,8 @@ end
 
 # compute GLM robust Z (adjusted response variable) and W (weights)
 function g_ZW(family::String,robust_type::String,y::type_VecFloatInt,mu::type_VecFloatInt,
-    s::type_VecFloatInt,c::type_FloatInt,sigma::Union{Nothing,Float64,Int};max_j::Int=Int(1e10))
+    s::type_VecFloatInt,c::type_FloatInt,sigma::Union{Nothing,Float64,Int})
+
     if robust_type=="none"
         return g_link(family,mu) .+ (y .- mu) .* g_derlink(family,mu),
         1 ./ (g_derlink(family,mu) .^ 2 .* s .^2)
@@ -203,8 +195,8 @@ function g_ZW(family::String,robust_type::String,y::type_VecFloatInt,mu::type_Ve
     nb_r = (typeof(sigma)==Nothing, nothing, 1/sigma)
     nb_p = similar(y)
 
-    j1::Vector{Integer} = max.(ceil.(Integer,mu .- c .* s),0)
-    j2::Vector{Integer} = min.(floor.(Integer,mu .+ c .* s),max_j)
+    j1::Vector{Int} = max.(ceil.(Int,mu .- c .* s),0)
+    j2::Vector{Int} = floor.(Int,mu .+ c .* s)
     # j1 = max.(ceil.(Int,mu .- c .* s),0)
     # j2= min.(floor.(Int,mu .+ c .* s),1e4)
     zero_index = j1 .> j2

@@ -256,22 +256,23 @@ end
 
 # RGAPLM for Poisson and NB
 function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMatFloatInt;
-    family::St ="NB", method::St = "Pan", link::St="log", verbose=true,
-    span::type_VecFloatInt,loess_degree::Vector{N},
+    family::String ="NB", method::String = "Pan", link::String="log", verbose=true,
+    span::type_VecFloatInt,loess_degree::Vector{Int},
     sigma::type_FloatInt= 1.0,
     beta::Union{Nothing,Float64,Int,Vector{Float64},Vector{Int}}=nothing,
-    c::U=1.345, robust_type::St ="Tukey",
-    c_X::U=1.345, robust_type_X::St ="Tukey",
-    c_T::U=1.345, robust_type_T::St ="Tukey",
-    c_sigma::U=1.345, robust_type_c::St = "Tukey",
-    epsilon::U=1e-6, max_it::N = 100,
-    epsilon_T::U = 1e-6, max_it_T::N = 5,
-    epsilon_X::U = 1e-6, max_it_X::N = 5,
-    epsilon_RAM::U = 1e-6, max_it_RAM::N = 10,
-    epsilon_sigma::U=1e-4, max_it_sigma::N = 10,
-    epsilon_eta::U=1e-4, max_it_eta::N = 25,
-    initial_beta::Bool = false, maxmu::U=1e5,
-    minmu::U=1e-10,min_sigma = 1e-5,max_sigma::U = 1e5) where {U <: type_FloatInt, N <: Int, St <: String}
+    c::type_FloatInt=1.345, robust_type::String ="Tukey",
+    c_X::type_FloatInt=1.345, robust_type_X::String ="Tukey",
+    c_T::type_FloatInt=1.345, robust_type_T::String ="Tukey",
+    c_sigma::type_FloatInt=1.345, robust_type_c::String = "Tukey",
+    epsilon::type_FloatInt=1e-6, max_it::Int = 100,
+    epsilon_T::type_FloatInt = 1e-6, max_it_T::Int = 5,
+    epsilon_X::type_FloatInt = 1e-6, max_it_X::Int = 5,
+    epsilon_RAM::type_FloatInt = 1e-6, max_it_RAM::Int = 10,
+    epsilon_sigma::type_FloatInt=1e-4, max_it_sigma::Int = 10,
+    epsilon_eta::type_FloatInt=1e-4, max_it_eta::Int = 25,
+    initial_beta::Bool = false, maxmu::type_FloatInt=1e5,
+    minmu::type_FloatInt=1e-10,min_sigma::type_FloatInt = 1e-5,max_sigma::type_FloatInt = 1e5)
+ # where {U <: type_FloatInt, N <: Int, St <: String}
 
     # initialization
     n::Int = length(y)
@@ -423,37 +424,32 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
     elseif family =="NB"
         # vectorized; could be more computationally efficient
         # GLM components
-        link = g_link
-        invlink = g_invlink
-        derivlink = g_derlink
-        derivinvlink = g_derinvlink
-        varfunc = g_var
 
         # initial mu computed through Poisson GLM
         # replace this with my GRBF
-        if initial_beta==false
+        if !initial_beta
             # ML estimations of mu and sig in an alternating fashion
             full_loglkhd1 = 0
             full_loglkhd0 = full_loglkhd1+epsilon+1
             iter = 0
 
             # outer loop
-            while (abs(full_loglkhd1 - full_loglkhd0) > epsilon) & (iter < max_it)
-                full_loglkhd0 = full_loglkhd1
-
+            while (abs(full_loglkhd1 - full_loglkhd0) > epsilon) & (iter < 15)
                 # estimate mu
-                GAPLM_MLE = RGAPLM(y,X,T;
+                GAPLM_MLE = RGAPLM(y,X,T,
                     family="P", method= "Pan", link="log", verbose=false,
                     span=span,loess_degree=loess_degree,
-                    sigma= 1.0,
+                    sigma= sigma,
                     beta=beta,
-                    c=100, robust_type ="Tukey",
-                    c_X=100, robust_type_X ="Tukey",
-                    c_T=100, robust_type_T ="Tukey",
-                    epsilon=epsilon, max_it = 50)
-                beta = GAPLM_init.beta
-                mu = GAPLM_init.mu
-                eta = g_link(mu)
+                    c=500, robust_type ="Huber",
+                    c_X=500, robust_type_X ="Huber",
+                    c_T=500, robust_type_T ="Huber",
+                    epsilon=epsilon, max_it = 10)
+
+
+                beta = copy(GAPLM_MLE.beta)
+                mu = copy(GAPLM_MLE.mu)
+                eta = g_link(family,mu)
                 mu[mu .> maxmu] .= maxmu
                 mu[mu .< minmu] .= minmu
 
@@ -464,17 +460,18 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
                 iter_sigma = 0
 
                 # Newton Raphson to calc
-                while (abs(loglkhd_sig1 - loglkhd_sig0) > epsilon_sigma) & (iter_sigma < maix_it_sigma)
-                    loglkhd_sig0 = ll(y,mu,sigma)
+                while (abs(loglkhd_sig1 - loglkhd_sig0) > epsilon_sigma) & (iter_sigma < max_it_sigma)
                     sigma = abs(sigma - score_sigma(y,mu,sigma)/info_sigma(y,mu,sigma))
                     if sigma > max_sigma
                         sigma = max_sigma
                     end
-                    loglkhd_sig0 = ll(y,mu,sigma)
+                    loglkhd_sig0 = copy(loglkhd_sig1)
+                    loglkhd_sig1 = ll(y,mu,sigma)
                     iter_sigma += 1
                 end
 
                 # update
+                full_loglkhd0 = full_loglkhd1
                 full_loglkhd1 = ll(y,mu,sigma)
                 iter += 1
             end # if initial values are provided
@@ -486,32 +483,36 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
         end
 
         if verbose
-            println("Parameter initialization completed")
+            @show("Parameter initialization completed")
         end
 
         # Start estimation
         if method == "Pan"
 
             # initialization
-            par = vec(X * beta)
-            eta = copy(par)
+            @show sigma
+            @show beta
+            @show mu[1:5]
             mu = g_invlink(family,eta)
             s = sqrt.(g_var(family,mu,sigma))
             z, w = g_ZW(family,robust_type,y,mu,s,c,sigma)
-            par_res = vec(z .- par)
 
             crit =  epsilon + 1
             iter = 0
-            tmp_sigma = similar(sigma)
+            tmp_sigma = copy(sigma)
             tmp_eta = similar(eta)
             tmp_beta = similar(beta)
             tmp_S = similar(S)
 
-            # start the loop for beta
+
+            if verbose
+                @show("Starting the loop . . .")
+            end
+            # start the loop
             while (crit > epsilon) & (iter < max_it)
                 # estimate sigma
                 tmp_sigma = copy(sigma)
-                robust_sigma_uniroot = (xx -> robust_sigma(y,mu,xx,c_sigma;type=type,family=family))
+                robust_sigma_uniroot = (xx -> robust_sigma(y,mu,xx,c_sigma;type=robust_type_c,family=family))
                 roots = Roots.find_zeros(robust_sigma_uniroot,min_sigma,max_sigma,verose=true,xrtol=epsilon_sigma)
 
                 if length(roots) == 0
@@ -530,9 +531,15 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
                     end
                 end
 
+                if verbose
+                    @show iter
+                    @show sigma
+                end
+
                 # update robust components involving sigma
                 s = sqrt.(g_var(family,mu,sigma))
                 z, w = g_ZW(family,robust_type,y,mu,s,c,sigma)
+                par = X * beta
                 par_res = vec(z .- par)
 
                 # estimate eta (beta + f(T))
@@ -557,18 +564,28 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
                     mu[mu .< minmu] .= minmu
                     s = sqrt.(g_var(family,mu,sigma))
                     z,w = g_ZW(family,robust_type,y,mu,s,c,sigma)
+                    par = X * beta
                     par_res = vec(z .- par)
+
                     crit_eta = (compute_crit(S,tmp_S,"norm2_change") + compute_crit(beta,tmp_beta,"norm2_change"))/2
                     iter_eta += 1
                 end
 
                 # compute sigma crit and eta crit
-                crit = (abs(tmp_sigma - sigma) + compute_crit(eta,tmp_eta,"norm_inf"))/2
+                crit = max(abs(tmp_sigma - sigma),compute_crit(eta,tmp_eta,"norm_inf"))
                 iter += 1
+
+                if verbose
+                    @show iter
+                    @show crit
+                    @show beta
+                    @show sigma
+                    @printf("Iter %.0f; Crit %.2E; beta0: %.2E; beta1:  %.2E; sigma: %.2E \n",iter,crit,beta[1],beta[2],sigma)
+                end
             end
             # end of estimation
             if verbose
-                @printf("Pan Poisson fitted with %.0f iterations and converged with %.2E",iter,crit)
+                @printf("Pan NB fitted with %.0f iterations and converged with %.2E",iter,crit)
             end
 
             return (eta=eta,mu=mu,z=z,w=w,beta=beta,S=S,s=s,convergence=Dict(:iter => iter, :crit => crit))
