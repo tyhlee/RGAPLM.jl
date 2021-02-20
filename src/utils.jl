@@ -135,7 +135,7 @@ function nb2_pdf_mu_sigma(mu::T,sigma::T,y::Union{Int,Vector{Int},Float64,Vector
 end
 
 # GLM link functions
-function g_link(family::String,mu::type_VecFloat;link::String="log")
+function g_link(family::String,mu::type_VecFloatInt;link::String="log")
     if link == "log"
         return log.(mu)
     else
@@ -144,7 +144,7 @@ function g_link(family::String,mu::type_VecFloat;link::String="log")
 end
 
 # GLM inverse link functions
-function g_invlink(family::String,eta::type_VecFloat;link::String="log")
+function g_invlink(family::String,eta::type_VecFloatInt;link::String="log")
     if link == "log"
         return exp.(eta)
     else
@@ -153,7 +153,7 @@ function g_invlink(family::String,eta::type_VecFloat;link::String="log")
 end
 
 # GLM derivative of link functions
-function g_derlink(family::String,mu::type_VecFloat;link::String="log")
+function g_derlink(family::String,mu::type_VecFloatInt;link::String="log")
     if link == "log"
         return 1 ./ mu
     else
@@ -162,7 +162,7 @@ function g_derlink(family::String,mu::type_VecFloat;link::String="log")
 end
 
 # GLM derivative of inv link function
-function g_derlink(family::String,eta::type_VecFloat;link::String="log")
+function g_derlink(family::String,eta::type_VecFloatInt;link::String="log")
     if link == "log"
         return exp.(eta)
     else
@@ -171,7 +171,7 @@ function g_derlink(family::String,eta::type_VecFloat;link::String="log")
 end
 
 # GLM weight functions
-function g_weight(family::String,mu::type_VecFloat;link::String="log")
+function g_weight(family::String,mu::type_VecFloatInt;link::String="log")
     if link == "log"
         log.(mu)
     else
@@ -192,16 +192,21 @@ end
 
 # compute GLM robust Z (adjusted response variable) and W (weights)
 function g_ZW(family::String,robust_type::String,y::type_VecFloatInt,mu::type_VecFloatInt,
-    s::type_VecFloatInt,c::type_FloatInt,sigma::Union{Nothing,Float64,Int})
-
+    s::type_VecFloatInt,c::type_FloatInt,sigma::Union{Nothing,Float64,Int};max_j::Int=Int(1e10))
+    if robust_type=="none"
+        return g_link(family,mu) .+ (y .- mu) .* g_derlink(family,mu),
+        1 ./ (g_derlink(family,mu) .^ 2 .* s .^2)
+    end
     E1 = similar(y)
     E2 = similar(y)
-    musq::Vector{Float64} = mu .^ 2
+    musq = mu .^ 2
     nb_r = (typeof(sigma)==Nothing, nothing, 1/sigma)
     nb_p = similar(y)
 
-    j1::Vector{Int} = max.(ceil.(Int,mu .- c .* s),0)
-    j2::Vector{Int} = floor.(Int,mu .+ c .* s)
+    j1::Vector{Integer} = max.(ceil.(Integer,mu .- c .* s),0)
+    j2::Vector{Integer} = min.(floor.(Integer,mu .+ c .* s),max_j)
+    # j1 = max.(ceil.(Int,mu .- c .* s),0)
+    # j2= min.(floor.(Int,mu .+ c .* s),1e4)
     zero_index = j1 .> j2
     # make this into floor
     j1 .-= 1
@@ -277,7 +282,7 @@ function g_ZW(family::String,robust_type::String,y::type_VecFloatInt,mu::type_Ve
     E2[zero_index] .= 0
 
     # return Z and W
-    g_link(family,mu) .+ s .* (psi( (y .- mu) ./ s, c,robust_type) .- E1) .*
+    return g_link(family,mu) .+ s .* (psi( (y .- mu) ./ s, c,robust_type) .- E1) .*
     g_derlink(family,mu) ./ E2, E2 ./ (s .* g_derlink(family,mu)) .^2
 
 end

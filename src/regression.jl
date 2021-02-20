@@ -344,7 +344,7 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
                 s = sqrt.(g_var(family,mu,sigma))
                 z,w = g_ZW(family,robust_type,y,mu,s,c,sigma)
                 par_res = vec(z .- par)
-                crit = compute_crit(S,tmp_S,"norm2_change") .+ compute_crit(beta,tmp_beta,"norm2_change")
+                crit = compute_crit(S,tmp_S,"norm2_change") + compute_crit(beta,tmp_beta,"norm2_change")
                 iter += 1
             end
             # end of Pan Poisson
@@ -553,6 +553,8 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
                     # update eta, mu, Z, W
                     eta = vec(par .+ nonpar)
                     mu = g_invlink(family,eta)
+                    mu[mu .> maxmu] .= maxmu
+                    mu[mu .< minmu] .= minmu
                     s = sqrt.(g_var(family,mu,sigma))
                     z,w = g_ZW(family,robust_type,y,mu,s,c,sigma)
                     par_res = vec(z .- par)
