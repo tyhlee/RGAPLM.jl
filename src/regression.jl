@@ -647,12 +647,12 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
 
                     alpha, S, _ = RAM(par_res,T,w,span=span,loess_degree=loess_degree,epsilon=epsilon_T,max_it=max_it_T,
                     max_it_loess=max_it_RAM,epsilon_loess= epsilon_RAM,type=robust_type_T,
-                    c=c_T,sigma=sigma, alpha=0.0,update_intercept=false,
+                    c=c_T,sigma=sigma, alpha=0.0,update_intercept=true,
                     max_it_global=1)
 
                     nonpar = vec(sum(S,dims=2))
-                    # beta[1] = beta[1] + alpha
-                    # par = X * beta
+                    beta[1] = beta[1] + alpha
+                    par = X * beta
 
                     # estimate beta
                     crit_X = 10 * epsilon_X
