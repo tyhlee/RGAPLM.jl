@@ -583,8 +583,127 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
 
             return (eta=eta,mu=mu,z=z,w=w,beta=beta,sigma=sigma,S=S,s=s,convergence=Dict(:iter => iter, :crit => crit))
 
-        elseif method =="Lee"
+        elseif method=="Lee"
 
+            # initialization
+            s = sqrt.(g_var(family,mu,sigma))
+            z, w = g_ZW(family,robust_type,y,mu,s,c,sigma)
+
+            crit =  epsilon + 1
+            iter = 0
+            tmp_sigma = copy(sigma)
+            tmp_eta = similar(eta)
+            tmp_beta = similar(beta)
+            tmp_S = similar(S)
+
+
+            if verbose
+                println("Starting the loop . . .")
+            end
+
+            # start the loop
+            while (crit > epsilon) & (iter < max_it)
+                # estimate sigma
+                tmp_sigma = copy(sigma)
+                robust_sigma_uniroot = (xx -> robust_sigma(y,mu,xx,c_sigma;type=robust_type_c,family=family))
+                roots = Roots.find_zero(robust_sigma_uniroot,(min_sigma,max_sigma),Roots.Bisection(),
+                verbose=false,tol=epsilon_sigma,maxevals=max_it_sigma)
+                #roots = Roots.find_zero(robust_sigma_uniroot,min_sigma,max_sigma,verbose=verbose,xrtol=epsilon_sigma)
+                if length(roots) == 0
+                    # do not update
+                    @warn("Roots not found for sigma (current value: $sigma)")
+                elseif length(roots) == 1
+                    #  update sigma
+                    sigma = float(roots[1])
+                else
+                    # likely multipel roots close to zero
+                    roots = Roots.find_zeros(robust_sigma_uniroot,0.1,max_sigma,verose=true)
+                    if length(roots) == 0
+                        sigma = 0.1
+                    else
+                        sigma = float(roots[1])
+                    end
+                end
+
+                # update components involving sigma
+                s = sqrt.(g_var(family,mu,sigma))
+                z, w = g_ZW(family,"none",y,mu,s,c,sigma)
+                robust_z = similar(z)
+                robust_w = similar(w)
+                par = X * beta
+                par_res = vec(z .- par)
+                tmp_beta = copy(beta)
+
+                # initalize paramters for updating η
+                tmp_eta = copy(eta)
+                iter_eta = 0
+                crit_eta = epsilon_eta + 1.0
+
+                # update η
+                while (crit_eta > epsilon_eta) & (iter_eta < max_it_eta)
+                    # update f(T) using
+                    # non-robust components with robust univariate smoothers
+                    tmp_S = copy(S)
+
+                    alpha, S, _ = RAM(par_res,T,w,span=span,loess_degree=loess_degree,epsilon=epsilon_T,max_it=max_it_T,
+                    max_it_loess=max_it_RAM,epsilon_loess= epsilon_RAM,type=robust_type_T,
+                    c=c_T,sigma=sigma, alpha=0.0,update_intercept=false,
+                    max_it_global=1)
+
+                    nonpar = vec(sum(S,dims=2))
+                    # beta[1] = beta[1] + alpha
+                    # par = X * beta
+
+                    # estimate beta
+                    crit_X = 10 * epsilon_X
+                    iter_X = 0
+                    while (crit_X > epsilon_X) & (iter_X < max_it_X)
+                        mu = g_invlink(family,nonpar .+ par ;link=link)
+                        # prevent overflow/underflow
+                        mu[mu .> maxmu] .= maxmu
+                        mu[mu .< minmu] .= minmu
+                        s = sqrt.(g_var(family,mu,sigma))
+                        robust_z, robust_w = g_ZW(family,robust_type,y,mu,s,c_X,sigma)
+                        tmp_beta = copy(beta)
+                        beta = wls(vec(robust_z .- nonpar),X,robust_w)
+                        par = X * beta
+                        crit_X = compute_crit(beta,tmp_beta,"norm_inf")
+                        iter_X += 1
+                    end
+
+                    tmp_beta = copy(beta)
+                    beta = wls(vec(z .- nonpar),X,w)
+                    par = X * beta
+
+                    # update eta, mu, Z, W
+                    tmp_eta = copy(eta)
+                    eta = vec(par .+ nonpar)
+                    mu = g_invlink(family,eta)
+                    mu[mu .> maxmu] .= maxmu
+                    mu[mu .< minmu] .= minmu
+                    s = sqrt.(g_var(family,mu,sigma))
+                    z,w = g_ZW(family,"none",y,mu,s,c,sigma)
+                    par_res = vec(z .- par)
+
+                    crit_eta = max(compute_crit(S,tmp_S,"norm_inf"),compute_crit(beta,tmp_beta,"norm_inf"))
+                    iter_eta += 1
+                end
+
+                # compute sigma crit and eta crit
+                crit = max(abs(tmp_sigma - sigma),compute_crit(eta,tmp_eta,"norm_inf"))
+                iter += 1
+
+                if verbose
+                    @printf("Iter %.0f; Crit %.2E; beta0: %.2E; beta1:  %.2E; sigma: %.2E \n",iter,crit,beta[1],beta[2],sigma)
+                    @show beta
+                end
+            end
+            # end of estimation
+            if verbose
+                @printf("Lee NB fitted with %.0f iterations and converged with %.2E",iter,crit)
+            end
+
+            return (eta=eta,mu=mu,z=z,w=w,beta=beta,sigma=sigma,S=S,s=s,convergence=Dict(:iter => iter, :crit => crit))
         else
             error("Method $method is not supported.")
         end
@@ -592,21 +711,5 @@ function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMa
     else
         error("Family $family is not supported.")
     end
-
-    # S, beta, sigma
-
-    # get the likelihood; convergence in likelihood!
-
-    # write three versions: X, T, X & T
-
-    # global while loop
-
-        # local loop sigma
-
-        # local loop beta + S
-            # local loop beta
-            # local loop S
-
-    # return beta, S, mu, eta, sigma in dic format
-    (a=3, b="hi")
+    # end of RGAPLM
 end

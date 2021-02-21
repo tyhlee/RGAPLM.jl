@@ -352,7 +352,7 @@ y[100:103] = ceil.(Int,y[100:103].*2.5)
 c=4.5
 
 model =  RGAPLM(y,X,T,
-    family=family, method = "Pan", link="log", verbose=true,
+    family=family, method = "Lee", link="log", verbose=true,
     span=span,loess_degree=degree,
     sigma= 1.0,
     beta=nothing,
