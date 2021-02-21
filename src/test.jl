@@ -339,19 +339,37 @@ mu = exp.(eta)
 y = rand.(Poisson.(mu))
 youtlier = copy(y)
 w = ones(length(y))
-span = repeat([0.25],size(T)[2])
+span = repeat([0.15],size(T)[2])
 degree = ones(Int,size(T)[2])
 c = 30.0 # don't set it too large; otherwise computation is too slow
 max_it = 50
 family="NB"
-sigma=0.5
+sigma=1.5
 y = float.(rand.(NegativeBinomial.(1/sigma, 1 ./ (sigma .* mu .+ 1))))
 
 # inject some outliers
 y[100:103] = ceil.(Int,y[100:103].*2.5)
-c=4.5
+c=50.0
 
 model =  RGAPLM(y,X,T,
+    family=family, method = "Pan", link="log", verbose=true,
+    span=span,loess_degree=degree,
+    sigma= 1.0,
+    beta=nothing,
+    c=c,
+    c_X=c,
+    c_T=c,
+    c_sigma=c*2,
+    epsilon=1e-6,max_it=10,
+    epsilon_T = 1e-5, max_it_T = 5,
+    epsilon_X = 1e-5, max_it_X = 10,
+    epsilon_RAM = 1e-5, max_it_RAM = 5,
+    epsilon_sigma=1e-5, max_it_sigma=10,
+    epsilon_eta=1e-5, max_it_eta = 10,
+    initial_beta = false, maxmu=1e5,
+    minmu=1e-5,min_sigma = 0.1,max_sigma = 15.0)
+
+model_Lee =  RGAPLM(y,X,T,
     family=family, method = "Lee", link="log", verbose=true,
     span=span,loess_degree=degree,
     sigma= 1.0,
