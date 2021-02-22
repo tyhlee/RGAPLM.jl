@@ -18,7 +18,7 @@ function tricube(u::type_VecFloatInt)
 end
 
 # create the design matrix for loess
-function outer_power(u::type_VecFloatInt,pow_degree::Integer)
+function outer_power(u::type_VecFloatInt,pow_degree::Int)
     tmp = Array{Float64,2}(undef,length(u),pow_degree+1)
     for i in 0:pow_degree
         tmp[:,i+1] = u.^i
