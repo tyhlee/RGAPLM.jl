@@ -1,12 +1,12 @@
-using BenchmarkTools
-using LinearAlgebra
-using RDatasets
-using Distributions, StatsFuns, SpecialFunctions
-using Roots
-using Debugger
-using Plots
-using Printf
-include("utils.jl")
+# using BenchmarkTools
+# using LinearAlgebra
+# using RDatasets
+# using Distributions, StatsFuns, SpecialFunctions
+# using Roots
+# using Debugger
+# using Plots
+# using Printf
+# include("utils.jl")
 
 # weighted least squares
 function wls(y::type_VecFloatInt,

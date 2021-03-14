@@ -11,13 +11,21 @@ type_VecOrMatFloatInt = Union{type_VecOrMatFloat,type_VecOrMatInt}
 type_FloatInt = Union{Int,Float64}
 type_VecFloatIntFloatInt = Union{Int,Float64,type_VecInt,type_VecFloat}
 type_NTVecOrMatFloatInt = Union{Nothing,type_VecOrMatFloat,type_VecOrMatInt}
+"""
+    tricube(u)
 
+Compute the tricube kernel of u
+"""
 function tricube(u::type_VecFloatInt)
     # (1 .- u.^3).^3
     map(x -> abs(x) <= 1.0 ? (1-x^3)^3 : 0,u)
 end
 
-# create the design matrix for loess
+"""
+    outer_power(u,powd_degree)
+
+Create a power design matrix of u^1:pow_degree.
+"""
 function outer_power(u::type_VecFloatInt,pow_degree::Int)
     tmp = Array{Float64,2}(undef,length(u),pow_degree+1)
     for i in 0:pow_degree
@@ -26,11 +34,21 @@ function outer_power(u::type_VecFloatInt,pow_degree::Int)
     tmp
 end
 
+"""
+    compute_kernel_weight(x,span)
+
+Compute the kernel weight of x given span
+"""
 # compute the kernel weight for loess
 function compute_kernel_weight(x::type_VecFloatInt, span::type_FloatInt)
     tricube(x./sort(abs.(x))[ceil(Int,span*length(x))])
 end
 
+"""
+    rho(r,c,type)
+
+Compute the rho-function of type for r given c
+"""
 function rho(r::type_VecFloatIntFloatInt, c::type_FloatInt=1.345,type::String="Huber") where T <: Real
     if type=="Huber"
         return map(t -> abs(t)<=c ? t^2 : 2*c*abs(t)-c^2,r)
@@ -41,6 +59,11 @@ function rho(r::type_VecFloatIntFloatInt, c::type_FloatInt=1.345,type::String="H
     end
 end
 
+"""
+    psi(r,c,type)
+
+Compute the psi-function (derivative of rho) of type for r given c
+"""
 function psi(r::type_VecFloatIntFloatInt, c::type_FloatInt,type::String="Huber")
     if type=="Huber"
         return map(t -> abs(t)<=c ? t : sign(t)*c,r)
@@ -50,7 +73,11 @@ function psi(r::type_VecFloatIntFloatInt, c::type_FloatInt,type::String="Huber")
         throw(error("Unknown type"))
     end
 end
+"""
+    psi_weight(r,c,type)
 
+Compute the robust weight function of type for r given c
+"""
 function psi_weight(r::type_VecFloatIntFloatInt, c::type_FloatInt,type::String="Huber")
     if type=="Huber"
         return map(t -> abs(t)<=c ? 1 : c/abs(t),r)
@@ -61,6 +88,11 @@ function psi_weight(r::type_VecFloatIntFloatInt, c::type_FloatInt,type::String="
     end
 end
 
+"""
+    compute_crite(X,XX,type)
+
+Compute the criterion of type between X and XX
+"""
 function compute_crit(X::type_VecOrMatFloatInt,XX::type_VecOrMatFloatInt,type="norm2")
     if type=="norm2"
         return norm(sum(X .- XX,dims=2))
@@ -72,6 +104,7 @@ function compute_crit(X::type_VecOrMatFloatInt,XX::type_VecOrMatFloatInt,type="n
         error("Compute crit $type is not supported")
     end
 end
+
 
 # drop the ind column of a matrix
 dropcol(M::AbstractMatrix,ind) = M[:,deleteat!(collect(axes(M,2)),ind)]
