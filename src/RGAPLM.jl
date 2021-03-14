@@ -7,6 +7,6 @@ using LinearAlgebra, Distributions, StatsFuns, SpecialFunctions, Roots, Printf
 include("utils.jl")
 include("regression.jl")
 
-export wls, loess, rloess, AM, RAM, RGAPLM
+export wls, loess, rloess, AM, RAM, rGAPLM
 
 end
