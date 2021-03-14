@@ -255,7 +255,7 @@ function RAM(y::type_VecFloatInt,X::type_VecOrMatFloatInt,w::type_VecFloatInt=on
 end
 
 # RGAPLM for Poisson and NB
-function RGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMatFloatInt;
+function rGAPLM(y::type_VecFloatInt,X::type_NTVecOrMatFloatInt,T::type_NTVecOrMatFloatInt;
     family::String ="NB", method::String = "Pan", link::String="log", verbose=true,
     span::type_VecFloatInt,loess_degree::Vector{Int},
     sigma::type_FloatInt= 1.0,
