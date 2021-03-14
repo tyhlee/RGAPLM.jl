@@ -1,7 +1,7 @@
 module RGAPLM
 
 # import packages
-using LinearAlgebra, Distributions, StatsFuns, SpecialFunctions, Roots
+using LinearAlgebra, Distributions, StatsFuns, SpecialFunctions, Roots, Printf
 
 # Write your package code here.
 include("utils.jl")
