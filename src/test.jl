@@ -1,15 +1,10 @@
 # testing
+using RGAPLM
 using BenchmarkTools
-using LinearAlgebra
 using RDatasets
-using Distributions, StatsFuns, SpecialFunctions
-using Roots
 using Debugger
 using Plots
 using Printf
-include("utils.jl")
-include("regression.jl")
-
 
 # testing RAM, AM
 t = collect([1.0:1.0:365;])
@@ -126,7 +121,7 @@ tmp2[1][30]
 y[30]
 mu[30]
 
-# test RGAPLM - Poisson Pan
+# test rGAPLM - Poisson Pan
 t = collect([1.0:1.0:365;])
 tsq = t.^2
 esp = rand(length(t))
@@ -151,7 +146,7 @@ mu = g_invlink(family,eta)
 s = sqrt.(g_var(family,mu,sigma))
 z, w = g_ZW(family,"Tukey",y,mu,s,c,sigma)
 
-Pan_P = RGAPLM(y,X,T,
+Pan_P = rGAPLM(y,X,T,
     family ="P", method = "Pan",
     span=span,loess_degree=degree,
     beta=nothing,
@@ -174,7 +169,7 @@ plot!(Pan_P.beta,seriestype = :scatter)
 # inject some outliers
 y[100:103] = ceil.(Int,y[100:103].*2.5)
 c=3.5
-Pan_P = RGAPLM(y,X,T,
+Pan_P = rGAPLM(y,X,T,
     family ="P", method = "Pan",
     span=span,loess_degree=degree,
     beta=nothing,
@@ -196,7 +191,7 @@ plot(beta,seriestype = :scatter,title="β")
 plot!(Pan_P.beta,seriestype = :scatter)
 png("figs/Poisson_Pan_beta")
 
-# test RGAPLM - Poisson Lee
+# test rGAPLM - Poisson Lee
 method = "Lee"
 family = "P"
 t = collect([1.0:1.0:365;])
@@ -216,7 +211,7 @@ degree = ones(Int,size(T)[2])
 c = 5000.0
 max_it = 50
 
-model = RGAPLM(y,X,T,
+model = rGAPLM(y,X,T,
     family =family, method = method,
     span=span,loess_degree=degree,
     beta=nothing,
@@ -246,7 +241,7 @@ y[100:103] = ceil.(Int,y[100:103].*2.5)
 c=3.5
 span = repeat([0.3],size(T)[2])
 include("regression.jl")
-model = RGAPLM(y,X,T,
+model = rGAPLM(y,X,T,
     family =family, method = method,
     span=span,loess_degree=degree,
     beta=nothing,
@@ -326,7 +321,7 @@ function sigma_estimator(sigma, y,mu,c)
     sigma
 end
 
-# test RGAPLM - NB Pan
+# test rGAPLM - NB Pan
 t = collect([1.0:1.0:365;])
 tsq = t.^2
 esp = rand(length(t))
@@ -351,7 +346,7 @@ y = float.(rand.(NegativeBinomial.(1/sigma, 1 ./ (sigma .* mu .+ 1))))
 y[100:103] = ceil.(Int,y[100:103].*2.5)
 c=50.0
 
-model =  RGAPLM(y,X,T,
+model =  rGAPLM(y,X,T,
     family=family, method = "Pan", link="log", verbose=true,
     span=span,loess_degree=degree,
     sigma= 1.0,
@@ -369,7 +364,7 @@ model =  RGAPLM(y,X,T,
     initial_beta = false, maxmu=1e5,
     minmu=1e-5,min_sigma = 0.1,max_sigma = 15.0)
 
-model_Lee =  RGAPLM(y,X,T,
+model_Lee =  rGAPLM(y,X,T,
     family=family, method = "Lee", link="log", verbose=true,
     span=span,loess_degree=degree,
     sigma= 1.0,
